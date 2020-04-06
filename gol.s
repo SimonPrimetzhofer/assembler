@@ -148,14 +148,12 @@ _start:
     cmpq $5, ST_ARGC(%rbp)
     je hasOptParam
     jg endErrorArgNum
-    #set random seed and check parameters
 
 hasOptParam:
     movq $1, optParam
 
 checkParameters:
-#------------------------------------------------------------------------------
-#this is one block - maybe put this all into a function
+#-----------------------PARAMETER 1-----------------------------------------
     #save caller-save registers that are used in the function RAX, RDI, RDX
     pushq %rax
     pushq %rdi
@@ -197,47 +195,117 @@ checkParameters:
     popq %rdx
     popq %rsi
     popq %rdi
-#------------------------------------------------------
+#-----------------------PARAMETER 2-----------------------------------------
 	pushq %rax
 	pushq %rdi
 	pushq %rdx
 
-	#Get height and convert
+	#Get height
 	movq ST_ARGV_2(%rbp), %rdi
+
+	#convert
 	call convertToNum
+	cmpq $-1, %rax
+	je endIllegalValue
 	movq %rax, height
 
+	#restore caller-save registers
 	popq %rdx
 	popq %rdi
 	popq %rax
+
+	#save caller-save registers
+	pushq %rdi
+	pushq %rsi
+	pushq %rdx
+	pushq %rax
+
+	#check bounds
+	movq height, %rdi
+	movq $5, %rsi
+	movq $25, %rdx
+	call checkBounds
+
+	#check, if the value is out of bounds
+    #if true, end program with -2
+	cmpq $0, %rax
+	je endIllegalValue
+
+    #restore caller-save registers
+    popq %rax
+    popq %rdx
+    popq %rsi
+    popq %rdi
+#-----------------------PARAMETER 3-----------------------------------------
 
 	pushq %rax
 	pushq %rdi
 	pushq %rdx
 
-	#Get number of generations and convert
+	#Get height
 	movq ST_ARGV_3(%rbp), %rdi
+
+	#convert
 	call convertToNum
+	cmpq $-1, %rax
+	je endIllegalValue
 	movq %rax, generations
 
+	#restore caller-save registers
 	popq %rdx
 	popq %rdi
 	popq %rax
+
+	#save caller-save registers
+	pushq %rdi
+	pushq %rsi
+	pushq %rdx
+	pushq %rax
+
+	#check bounds
+	movq generations, %rdi
+	movq $1, %rsi
+	movq $100, %rdx
+	call checkBounds
+
+	#check, if the value is out of bounds
+    #if true, end program with -2
+	cmpq $0, %rax
+	je endIllegalValue
+
+    #restore caller-save registers
+    popq %rax
+    popq %rdx
+    popq %rsi
+    popq %rdi
+
+#-----------------------OPTIONAL PARAMETER 4-----------------------------------------
 
 	#check, if optional parameter is set
 
 	cmpq $1, optParam
 	jne fillGrid
 
-	#save caller-save registers
+    #if parameter 4 is set, convert it
+    #save caller-save registers
 	pushq %rax
 	pushq %rdi
 	pushq %rdx
 
-	#get seed for random generator
+	#Get height
 	movq ST_ARGV_4(%rbp), %rdi
+
+	#convert
 	call convertToNum
+
+	#if conversion succeeds: rng = num value
+	#if conversion fails: %rax contains -1
 	movq %rax, rng
+
+	#restore caller-save registers
+	popq %rdx
+	popq %rdi
+	popq %rax
 
 	jmp fillGrid
 
@@ -401,6 +469,10 @@ convertToNum:
 
         ret
 
+fillGrid:
+    #fill grid with random values
+    jmp endSuccess
+
 .type printGrid,@function
 printGrid:
 
@@ -459,10 +531,6 @@ getCell:
 # Internal use: ...
 countNeighbours:
 #... Write function here
-
-fillGrid:
-    #fill grid with random values
-    jmp endSuccess
 
 endErrorArgNum:
     movq $ERR_PARAM_NUM, %rdi
