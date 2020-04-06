@@ -34,6 +34,10 @@
 
 .section .bss
 #... Define current and next grid here
+# BUFFER_SIZE = 2000 -> max width = 80 * max height = 25
+.equ BUFFER_SIZE, 2000
+.lcomm CURR_GRID, BUFFER_SIZE
+.lcomm NEXT_GRID, BUFFER_SIZE
 
 .section .data
 #... Define global data here
@@ -469,8 +473,88 @@ convertToNum:
 
         ret
 
+#fill grid with random values
 fillGrid:
-    #fill grid with random values
+    #initialize loop counters
+    movq $0, %rcx #height counter
+
+    #set divisor for checking odd/even
+    movq $2, %rbx
+
+    #acts like nested loop
+    fill_height_loop:
+
+        #check end condition
+        cmpq %rcx, height
+        je end_fill_loop
+
+        #initialize nested loop counter
+        movq $0, %rdx #width counter
+        fill_width_loop:
+
+            #retrieve random value from rand
+            #save loop counters
+            pushq %rcx
+            pushq %rdx
+            pushq %rax
+
+            #get random number - return value in %rax
+            call rand
+            #divide by 2 and check for remainder
+            divq %rbx
+
+            #remainder is in %rdx
+            #if the number is odd (rest = 1), the cell is alive
+            cmpq $1, %rdx
+
+            #restore loop counters and rax
+            popq %rax
+            popq %rdx
+            popq %rcx
+
+            #store registers for setcell
+            pushq %rax
+            pushq %rdi
+            pushq %rsi
+            pushq %rdx
+            pushq %rcx
+
+            #set input parameters for setCell that do not depend on alive/dead
+            movq %rcx, %rdi
+            movq %rdx, %rsi
+            movq $CURR_GRID, %rdx
+
+            #jump after restoring
+            jne dead_cell
+
+            #cell should be alive
+            mov $42, %cl
+
+            dead_cell:
+            mov $32, %cl
+
+            call setCell
+
+            #restore registers
+            popq %rcx
+            popq %rdx
+            popq %rsi
+            popq %rdi
+            popq %rax
+
+            #go to next column
+            incq %rdx
+            cmpq %rdx, width
+            jne fill_width_loop
+
+        #go to next line
+        incq %rcx
+        jmp fill_height_loop
+
+    end_fill_loop:
+        #continue with playing the game
+
+play:
     jmp endSuccess
 
 .type printGrid,@function
@@ -499,16 +583,19 @@ rand:
 # Uses the global variable width. No error checks for bounds!
 # Parameters: RDI=row, RSI=column, RDX=base address of matrix, CL=value
 # Return value: None
+# note: the "grid" is actually one-dimensional
 setCell:
 	pushq %rbp
 	movq %rsp,%rbp
-    movq width,%rax
+
+    movq width,%rax     # multiplication: RDX:RAX = RAX*factor - RDX are upper 64 bits of result, and therefore, they must be saved beforehand
     pushq %rdx          # Temporarily store it; multiplication will destroy it but we still need it
-    mulq %rdi
+    mulq %rdi           # rax = row * width
     popq %rdx           # Restore base address
     addq %rax,%rdx      # Calculate real address by adding number of bytes in preceding rows...
     addq %rsi,%rdx      # ...and the preceding columns in this row
-    movb %cl,(%rdx)
+    movb %cl,(%rdx)     # insert value at calculated spot
+
 	movq %rbp,%rsp
 	popq %rbp
 	ret
