@@ -48,6 +48,10 @@ height:     .quad 0
 generations:.quad 0
 optParam:   .quad 0
 
+#TEST
+prefix: .ascii "TEST \0"
+.set prefix_len,.-prefix
+
 # Testing - comment out grid in section bss, uncomment a single of these, and make sure to call with width and height 5!
 /*
 # Test 1 - Produces an empyt result
@@ -529,11 +533,13 @@ fillGrid:
 
             #cell should be alive
             mov $42, %cl
+            jmp setValue
 
             dead_cell:
             mov $32, %cl
 
-            call setCell
+            setValue:
+                call setCell
 
             #restore registers
             popq %rcx
@@ -555,10 +561,74 @@ fillGrid:
         #continue with playing the game
 
 play:
-    jmp endSuccess
+    #initialize loop counter: 0..generations
+    movq $0, %rcx
+
+    play_loop:
+        #save registers for printgrid
+        pushq %rdi
+        pushq %rsi
+        pushq %rdx
+
+        call printGrid
+
+        #restore registers for printgrid
+        popq %rdx
+        popq %rsi
+        popq %rdi
+
+        #check end condition
+        cmpq %rcx, generations
+        je endSuccess
+
+
+# purpose: print whole grid to stdout
+# input: none
+# output: none
+# used registers:   RDI for filedescriptor of stdout
+#                   RSI for content to print
+#                   RDX for length of string
+#                   R15 for loop counter
+#                   R14 for index of row
+#                   R13 for temporary storing height
 
 .type printGrid,@function
 printGrid:
+    #prologue
+    pushq %r15
+    pushq %r14
+    pushq %r13
+
+    #init loop count to print every row
+    movq $0, %r15
+    movq height, %r13
+
+    print_loop:
+        cmpq %r15, height
+        je end_print_loop
+
+        pushq %r15
+        imulq %r13, %r15
+        movq %r15, %r14
+        popq %r15
+
+        movq $STDOUT, %rdi #write to stdout
+        #movq CURR_GRID(%r14), %rsi     #start address of content
+        #movq width, %rdx   #length of bytes to write
+        movq $prefix, %rsi
+        movq $prefix_len, %rdx
+        movq $1, %rax
+        syscall
+
+        jmp print_loop
+
+    end_print_loop:
+        #epilogue
+        popq %r13
+        popq %r14
+        popq %r15
+
+        ret
 
 
 
