@@ -48,10 +48,6 @@ height:     .quad 0
 generations:.quad 0
 optParam:   .quad 0
 
-#TEST
-prefix: .ascii "TEST \0"
-.set prefix_len,.-prefix
-
 # Testing - comment out grid in section bss, uncomment a single of these, and make sure to call with width and height 5!
 /*
 # Test 1 - Produces an empyt result
@@ -477,7 +473,7 @@ convertToNum:
 
         ret
 
-#fill grid with random values
+# purpose: fill grid with random values
 fillGrid:
     #initialize loop counters
     movq $0, %rcx #height counter
@@ -558,6 +554,10 @@ fillGrid:
         jmp fill_height_loop
 
     end_fill_loop:
+        #reset used registers
+        movq $0, %rbx
+        movq $0, %rcx
+        movq $0, %rdx
         #continue with playing the game
 
 play:
@@ -569,17 +569,26 @@ play:
         pushq %rdi
         pushq %rsi
         pushq %rdx
+        pushq %rax
+        pushq %rcx
 
         call printGrid
 
         #restore registers for printgrid
+        popq %rcx
+        popq %rax
         popq %rdx
         popq %rsi
         popq %rdi
 
+        #calculate generation cells
+        #TODO
+
+        incq %rcx
         #check end condition
         cmpq %rcx, generations
         je endSuccess
+        jne play_loop
 
 
 # purpose: print whole grid to stdout
@@ -597,40 +606,103 @@ printGrid:
     #prologue
     pushq %r15
     pushq %r14
-    pushq %r13
 
     #init loop count to print every row
     movq $0, %r15
-    movq height, %r13
 
     print_loop:
         cmpq %r15, height
         je end_print_loop
 
+        #save loop count
         pushq %r15
-        imulq %r13, %r15
+        #calculate row address by calculating row index * height
+        imulq height, %r15
+
+        #move to %r14
         movq %r15, %r14
+
+        #restore loopcount
         popq %r15
 
+        #prepare printing of line
+        pushq %rax
+        pushq %rdi
+        pushq %rsi
+        pushq %rdx
+        pushq %rcx
+
         movq $STDOUT, %rdi #write to stdout
-        #movq CURR_GRID(%r14), %rsi     #start address of content
-        #movq width, %rdx   #length of bytes to write
-        movq $prefix, %rsi
-        movq $prefix_len, %rdx
-        movq $1, %rax
+        movq $CURR_GRID, %r12
+        addq %r14, %r12
+
+        movq %r12, %rsi     #start address of content
+        movq width, %rdx   #length of bytes to write
+
+        movq $SYS_WRITE, %rax
         syscall
+
+        popq %rcx
+        popq %rdx
+        popq %rsi
+        popq %rdi
+        popq %rax
+
+        #prepare printing of linebreak
+        pushq %rax
+        pushq %rdi
+        pushq %rsi
+        pushq %rdx
+        pushq %rcx
+
+        #print linebreak
+        movq $STDOUT, %rdi
+        movq $linebreak,%rsi
+        #print CR and LF
+        movq $2, %rdx
+        #write to stdout
+        movq $SYS_WRITE, %rax
+        syscall
+
+        popq %rcx
+        popq %rdx
+        popq %rsi
+        popq %rdi
+        popq %rax
+
+        incq %r15
 
         jmp print_loop
 
     end_print_loop:
+
+        #print final linebreak
+        pushq %rax
+        pushq %rdi
+        pushq %rsi
+        pushq %rdx
+        pushq %rcx
+
+        #print linebreak
+        movq $STDOUT, %rdi
+        movq $linebreak,%rsi
+        #print CR and LF
+        movq $2, %rdx
+        #write to stdout
+        movq $SYS_WRITE, %rax
+        syscall
+
+        popq %rcx
+        popq %rdx
+        popq %rsi
+        popq %rdi
+        popq %rax
+
         #epilogue
-        popq %r13
         popq %r14
         popq %r15
 
         ret
-
-
 
 # This function is so simple, we exceptionally skip prologue and epilogue
 # Note: Division by two added, as otherwise the last bit will always exactly alternate,
