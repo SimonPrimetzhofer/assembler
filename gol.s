@@ -612,7 +612,9 @@ play:
                 movq %rax, %r8
 
                 #check if cell is alive or not
+                pushq %rdx
                 call getCell
+                popq %rdx
 
                 #move ascii value of star or whitespace into temporary r9
                 movq %rax, %r9
@@ -843,20 +845,222 @@ getCell:
 # Uses the global variable width. No error checks for bounds!
 # Parameters: RDI=row, RSI=column, RDX=base address of matrix
 # Return value: Number of neighbours of that cell (0...8)
-# Internal use: ...
+# Internal use: RBX for temporary storing number of neighbours
 countNeighbours:
+    #prologue
     pushq %rbp
     movq %rsp, %rbp
 
-    #if row is 0, no above cells
+    #push callee save registers for countNeighbours
+    pushq %rbx
+
+    #save caller save registers for getCell
+    #pushq %rdi
+    #pushq %rsi
+    #pushq %rdx
+    #pushq %rax
+
+    #scheme for checking neighbours
+    # 1 2 3
+    # 4 x 5
+    # 6 7 8
+
+    #if we are in the first row, no upper elements exist -> continue with left
+    cmpq $0, %rdi
+    je check4
+
+    #upper row
+    #left upper
+    check1:
+        cmpq $0, %rsi
+        je check2
+
+        #save registers
+        pushq %rdi
+        pushq %rsi
+        #row - 1 and column - 1
+        decq %rdi
+        decq %rsi
+
+        pushq %rdx
+        call getCell
+        popq %rdx
+
+        #restore initial values
+        popq %rsi
+        popq %rdi
+
+        #if cell is alive, increment neighbourcount, otherwise go to next cell
+        cmpq $42, %rax
+        jne check2
+        incq %rbx
+
+    #middle upper
+    check2:
+        pushq %rdi
+
+        #row - 1
+        decq %rdi
+
+        pushq %rdx
+        call getCell
+        popq %rdx
+
+        popq %rdi
+
+        cmpq $42, %rax
+        jne check3
+        incq %rbx
+
+    check3:
+        pushq %rsi
+        incq %rsi
+        cmpq width, %rsi
+        popq %rsi
+        je check4
+
+        #we are not in the rightest column yet
+        pushq %rdi
+        pushq %rsi
+
+        #row - 1, column + 1
+        decq %rdi
+        incq %rsi
+
+        pushq %rdx
+        call getCell
+        popq %rdx
+
+        popq %rsi
+        popq %rdi
+
+        cmpq $42, %rax
+        jne check4
+
+        incq %rbx
+
+    #the elements' row
+    check4:
+        cmpq $0, %rsi
+        je check5
+
+        pushq %rsi
+        decq %rsi
+
+        pushq %rdx
+        call getCell
+        popq %rdx
+
+        popq %rsi
+
+        cmpq $42, %rax
+        jne check5
+
+        incq %rbx
+
+    check5:
+        pushq %rsi
+        incq %rsi
+        cmpq width, %rsi
+        popq %rsi
+        je check6
+
+        pushq %rsi
+        incq %rsi
+
+        pushq %rdx
+        call getCell
+        popq %rdx
+
+        popq %rsi
+
+        cmpq $42, %rax
+        jne check6
+        incq %rbx
+
+    #lower row
+    check6:
+        #check, if the cell has no lower neighbours
+        pushq %rdi
+        incq %rdi
+        cmpq height, %rdi
+        popq %rdi
+        je endCounting
+
+        cmpq $0, %rsi
+        je check7
+
+        pushq %rdi
+        pushq %rsi
+
+        incq %rdi
+        decq %rsi
+
+        pushq %rdx
+        call getCell
+        popq %rdx
+
+        popq %rsi
+        popq %rdi
+
+        cmpq $42, %rax
+        jne check7
+        incq %rbx
+
+    check7:
+        pushq %rdi
+        incq %rdi
+
+        pushq %rdx
+        call getCell
+        popq %rdx
+
+        popq %rdi
+
+        cmpq $42, %rax
+        jne check8
+        incq %rbx
+
+    check8:
+        pushq %rsi
+        incq %rsi
+        cmpq width, %rsi
+        popq %rsi
+        je endCounting
+
+        pushq %rdi
+        pushq %rsi
+
+        incq %rdi
+        incq %rsi
+
+        pushq %rdx
+        call getCell
+        popq %rdx
+
+        popq %rsi
+        popq %rdi
+
+        cmpq $42, %rax
+        jne endCounting
+        incq %rbx
 
 
-    #if row is height, no below cells
+    endCounting:
 
-    #if column is 0, no left cells
+    #epilogue
 
-    #if column is width, no right cells
-    movq $2, %rax
+    #restore caller-save registers from getCell
+    #popq %rax
+    #popq %rdx
+    #popq %rsi
+    #popq %rdi
+
+    #move return value into rax
+    movq %rbx, %rax
+
+    #restore callee-save from countNeighbours
+    popq %rbx
 
     movq %rbp, %rsp
     popq %rbp
