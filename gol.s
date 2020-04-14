@@ -1166,6 +1166,23 @@ endIllegalValue:
     jmp endProgram
 
 endSuccess:
+    #print last grid
+    #save registers for printgrid
+    pushq %rdi
+    pushq %rsi
+    pushq %rdx
+    pushq %rax
+    pushq %rcx
+
+    call printGrid
+
+    #restore registers for printgrid
+    popq %rcx
+    popq %rax
+    popq %rdx
+    popq %rsi
+    popq %rdi
+
     movq $SUCCESS, %rdi
 
 endProgram:
