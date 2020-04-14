@@ -13,7 +13,6 @@
 	# generations - number of generations to calculate
 	# rng         - current value of the random number generator. Initialized with seed value if present,
 	#               otherwise 0. For simplicity 8 bytes, but only 31 bits used: rng=(1103515245*rng+12345)%2^31
-	#
 
 .equ STDOUT,1               # File handle for stdout
 .equ SYS_WRITE,1            # System call number for "write to file"
@@ -39,13 +38,12 @@
 .lcomm NEXT_GRID, BUFFER_SIZE
 
 .section .data
-#... Define global data here
 rng:		.quad 0         # Internal state of random generator
 linebreak:	.asciz "\r\n"   # Constant string to print an empty line; initialized therefore cannot be in BSS
-width:      .quad 0
-height:     .quad 0
-generations:.quad 0
-optParam:   .quad 0
+width:      .quad 0         # Height of grid (from parameter)
+height:     .quad 0         # Width of grid (from parameter)
+generations:.quad 0         # Generations to be played (from parameter)
+optParam:   .quad 0         # indicates, if there is a fourth parameter
 
 # Testing - comment out grid in section bss, uncomment a single of these, and make sure to call with width and height 5!
 /*
@@ -320,7 +318,8 @@ checkParameters:
 
 .type checkBounds,@function
 checkBounds:
-    #in this case, no prologue is needed
+    pushq %rbp
+    movq %rsp, %rbp
 
     #default is inside of bounds
     #only check, if out of bounds
@@ -333,6 +332,9 @@ checkBounds:
     #check upper bound
     cmpq %rdx, %rdi
     jg fault
+
+    movq %rbp, %rsp
+    popq %rbp
 
     #everything went fine
     ret
@@ -411,13 +413,6 @@ convertToNum:
         popq %rdx
         popq %rsi
         popq %rdi
-
-        #cmpq $48, %r12
-        #jl endIllegalValue
-
-        #check, if character is '9'
-        #cmpq $57, %r12
-        #jg endIllegalValue
 
         #convert character to its actual value
         sub $48, %r12b
@@ -569,21 +564,8 @@ play:
     movq $0, %rcx
 
     generations_loop:
-        #save registers for printgrid
-        pushq %rdi
-        pushq %rsi
-        pushq %rdx
-        pushq %rax
-        pushq %rcx
 
         call printGrid
-
-        #restore registers for printgrid
-        popq %rcx
-        popq %rax
-        popq %rdx
-        popq %rsi
-        popq %rdi
 
         #copy current grid to next grid
         pushq %rcx
@@ -758,18 +740,26 @@ play:
 # purpose: print whole grid to stdout
 # input: none
 # output: none
-# used registers:   RDI for filedescriptor of stdout
-#                   RSI for content to print
-#                   RDX for length of string
+# used registers:
 #                   R15 for loop counter
 #                   R14 for index of row
 #                   R13 for temporary storing height
+#
+# internally used:  RDI for filedescriptor of stdout
+#                   RSI for content to print
+#                   RDX for length of string
+#                   RAX return value of syscall
+#                   RCX filled by syscall
 
 .type printGrid,@function
 printGrid:
     #prologue
+    pushq %rbp
+    movq %rsp, %rbp
+
     pushq %r15
     pushq %r14
+    pushq %r13
 
     #init loop count to print every row
     movq $0, %r15
@@ -795,17 +785,19 @@ printGrid:
         pushq %rsi
         pushq %rdx
         pushq %rcx
+        pushq %r11
 
         movq $STDOUT, %rdi #write to stdout
-        movq $CURR_GRID, %r12
-        addq %r14, %r12
+        movq $CURR_GRID, %r13
+        addq %r14, %r13
 
-        movq %r12, %rsi     #start address of content
+        movq %r13, %rsi     #start address of content
         movq width, %rdx   #length of bytes to write
 
         movq $SYS_WRITE, %rax
         syscall
 
+        popq %r11
         popq %rcx
         popq %rdx
         popq %rsi
@@ -818,6 +810,7 @@ printGrid:
         pushq %rsi
         pushq %rdx
         pushq %rcx
+        pushq %r11
 
         #print linebreak
         movq $STDOUT, %rdi
@@ -828,6 +821,7 @@ printGrid:
         movq $SYS_WRITE, %rax
         syscall
 
+        popq %r11
         popq %rcx
         popq %rdx
         popq %rsi
@@ -846,6 +840,7 @@ printGrid:
         pushq %rsi
         pushq %rdx
         pushq %rcx
+        pushq %r11
 
         #print linebreak
         movq $STDOUT, %rdi
@@ -856,6 +851,7 @@ printGrid:
         movq $SYS_WRITE, %rax
         syscall
 
+        popq %r11
         popq %rcx
         popq %rdx
         popq %rsi
@@ -863,8 +859,12 @@ printGrid:
         popq %rax
 
         #epilogue
+        popq %r13
         popq %r14
         popq %r15
+
+        movq %rbp, %rsp
+        popq %rbp
 
         ret
 
@@ -889,7 +889,6 @@ rand:
 # Uses the global variable width. No error checks for bounds!
 # Parameters: RDI=row, RSI=column, RDX=base address of matrix, CL=value
 # Return value: None
-# note: the "grid" is actually one-dimensional
 setCell:
 	pushq %rbp
 	movq %rsp,%rbp
@@ -936,6 +935,9 @@ getCell:
 # Parameters: RDI=row, RSI=column, RDX=base address of matrix
 # Return value: Number of neighbours of that cell (0...8)
 # Internal use: RBX for temporary storing number of neighbours
+#               RAX for return value
+#               RDI for checking neighbouring rows
+#               RSI for checking neighbouring columns
 countNeighbours:
     #prologue
     pushq %rbp
@@ -943,12 +945,6 @@ countNeighbours:
 
     #push callee save registers for countNeighbours
     pushq %rbx
-
-    #save caller save registers for getCell
-    #pushq %rdi
-    #pushq %rsi
-    #pushq %rdx
-    #pushq %rax
 
     #scheme for checking neighbours
     # 1 2 3
@@ -1140,12 +1136,6 @@ countNeighbours:
 
     #epilogue
 
-    #restore caller-save registers from getCell
-    #popq %rax
-    #popq %rdx
-    #popq %rsi
-    #popq %rdi
-
     #move return value into rax
     movq %rbx, %rax
 
@@ -1157,31 +1147,24 @@ countNeighbours:
 
     ret
 
+#The program ends with an invalid number of arguments
+#e.g. ./gol 5 5 1 100 1
 endErrorArgNum:
     movq $ERR_PARAM_NUM, %rdi
     jmp endProgram
 
+#The program ends with an invalid value of one or more arguments
+#e.g. ./gol hallo 5 1 100
 endIllegalValue:
     movq $ERR_ILLEGAL_VAL, %rdi
     jmp endProgram
 
+#The program ends with no errors
+#Print the final grid before exiting
 endSuccess:
     #print last grid
-    #save registers for printgrid
-    pushq %rdi
-    pushq %rsi
-    pushq %rdx
-    pushq %rax
-    pushq %rcx
 
     call printGrid
-
-    #restore registers for printgrid
-    popq %rcx
-    popq %rax
-    popq %rdx
-    popq %rsi
-    popq %rdi
 
     movq $SUCCESS, %rdi
 
