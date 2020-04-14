@@ -564,7 +564,7 @@ play:
     #initialize loop counter: 0..generations
     movq $0, %rcx
 
-    play_loop:
+    generations_loop:
         #save registers for printgrid
         pushq %rdi
         pushq %rsi
@@ -581,15 +581,87 @@ play:
         popq %rsi
         popq %rdi
 
-        #calculate generation cells
-        #TODO
+        #calculate cells for next generation
+        #initialize loop counter for iterating over the current grid
 
-        incq %rcx
-        #check end condition
-        cmpq %rcx, generations
-        je endSuccess
-        jne play_loop
+        #initialize row count and set base address of grid
+        movq $0, %rdi #row count
+        movq $CURR_GRID, %rdx
+        play_loop:
 
+            cmpq height, %rdi
+            je end_generations_loop
+
+            #initialize nested loop counter
+            movq $0, %rsi #column count
+            play_loop_inner:
+
+                cmpq width, %rsi
+                je end_play_loop
+
+                #save registers for countNeighbours
+                pushq %rdi
+                pushq %rsi
+                pushq %rdx
+                pushq %rax
+
+                #get number of neighbours
+                call countNeighbours
+
+                #move number of neighbours into temporary r8
+                movq %rax, %r8
+
+                #check if cell is alive or not
+                call getCell
+
+                #move ascii value of star or whitespace into temporary r9
+                movq %rax, %r9
+                #check, if cell is alive
+                cmpq $42, %r9
+                je cell_alive
+
+                #cell is dead (value 32 (whitespace) in r9)
+                #if the dead cell has exactly three neighbours, it becomes alive
+                cmpq $3, %r8
+                jne end_inner_loop
+                #it has exactly three neighbours
+
+                #setCell(alive)
+                jmp end_inner_loop
+
+                #cell is alive (value 42 (star) in r9)
+                cell_alive:
+                    #check for conditions, where the cell must be killed
+                    cmpq $2, %r8
+                    jl kill_cell
+                    cmpq $3, %r8
+                    jg kill_cell
+
+                    #cell must not be killed
+                    jmp end_inner_loop
+
+                    kill_cell:
+                        #setCell (dead)
+
+                    end_inner_loop:
+                        popq %rax
+                        popq %rdx
+                        popq %rsi
+                        popq %rdi
+
+                        incq %rsi
+                        jmp play_loop_inner
+
+            end_play_loop:
+                incq %rdi
+                jmp play_loop
+
+        end_generations_loop:
+            incq %rcx
+            #check end condition
+            cmpq %rcx, generations
+            je endSuccess
+            jne generations_loop
 
 # purpose: print whole grid to stdout
 # input: none
@@ -747,7 +819,21 @@ setCell:
 # Parameters: RDI=row, RSI=column, RDX=base address of matrix
 # Return value: Content of byte at that position
 getCell:
-#... Write similar function to above here
+    pushq %rbp
+    movq %rsp, %rbp
+
+    movq width, %rax
+    pushq %rdx
+    mulq %rdi
+    popq %rdx
+    addq %rax, %rdx
+    addq %rsi, %rdx
+    #move value into al
+    movb (%rdx), %al
+
+    movq %rbp, %rsp
+    popq %rbp
+    ret
 
 # Get the number of alive neighbours a cell has. Note: E.g. the top left corner does not
 # have a preceding row, so all three "above" cells cannot be checked (--> memory violation!).
@@ -759,7 +845,23 @@ getCell:
 # Return value: Number of neighbours of that cell (0...8)
 # Internal use: ...
 countNeighbours:
-#... Write function here
+    pushq %rbp
+    movq %rsp, %rbp
+
+    #if row is 0, no above cells
+
+
+    #if row is height, no below cells
+
+    #if column is 0, no left cells
+
+    #if column is width, no right cells
+    movq $2, %rax
+
+    movq %rbp, %rsp
+    popq %rbp
+
+    ret
 
 endErrorArgNum:
     movq $ERR_PARAM_NUM, %rdi
