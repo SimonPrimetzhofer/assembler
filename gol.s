@@ -33,7 +33,6 @@
 .equ ERR_ILLEGAL_VAL, -2
 
 .section .bss
-#... Define current and next grid here
 # BUFFER_SIZE = 2000 -> max width = 80 * max height = 25
 .equ BUFFER_SIZE, 2000
 .lcomm CURR_GRID, BUFFER_SIZE
@@ -500,6 +499,11 @@ fillGrid:
 
             #get random number - return value in %rax
             call rand
+
+            #reset rdx for division and add the value from it to rax
+            addq %rdx, %rax
+            movq $0, %rdx
+
             #divide by 2 and check for remainder
             divq %rbx
 
@@ -581,6 +585,31 @@ play:
         popq %rsi
         popq %rdi
 
+        #copy current grid to next grid
+        pushq %rcx
+        pushq %rdx
+        pushq %rbx
+        pushq %rdi
+
+        movq $0, %rcx
+        movq $NEXT_GRID, %rdx
+        movq $CURR_GRID, %rbx
+        copy_loop:
+            cmpq $BUFFER_SIZE, %rcx
+            je end_copy_loop
+
+            movq (%rcx,%rbx,1), %rdi
+
+            movq %rdi, (%rcx,%rdx,1)
+
+            addq $8, %rcx
+            jmp copy_loop
+        end_copy_loop:
+            popq %rdi
+            popq %rbx
+            popq %rdx
+            popq %rcx
+
         #calculate cells for next generation
         #initialize loop counter for iterating over the current grid
 
@@ -628,7 +657,25 @@ play:
                 jne end_inner_loop
                 #it has exactly three neighbours
 
-                #setCell(alive)
+                #save registers
+                pushq %rax
+                pushq %rdi
+                pushq %rsi
+                pushq %rdx
+                pushq %rcx
+
+                #make cell alive
+                movq $NEXT_GRID, %rdx
+                movb $42, %cl
+                call setCell
+
+                #restore registers
+                popq %rcx
+                popq %rdx
+                popq %rsi
+                popq %rdi
+                popq %rax
+
                 jmp end_inner_loop
 
                 #cell is alive (value 42 (star) in r9)
@@ -643,7 +690,24 @@ play:
                     jmp end_inner_loop
 
                     kill_cell:
-                        #setCell (dead)
+                        #save registers
+                        pushq %rax
+                        pushq %rdi
+                        pushq %rsi
+                        pushq %rdx
+                        pushq %rcx
+
+                        #kill cell
+                        movq $NEXT_GRID, %rdx
+                        movb $32, %cl
+                        call setCell
+
+                        #restore registers
+                        popq %rcx
+                        popq %rdx
+                        popq %rsi
+                        popq %rdi
+                        popq %rax
 
                     end_inner_loop:
                         popq %rax
@@ -660,6 +724,32 @@ play:
 
         end_generations_loop:
             incq %rcx
+
+            #copy current grid to next grid
+            pushq %rcx
+            pushq %rdx
+            pushq %rbx
+            pushq %rdi
+
+            movq $0, %rcx
+            movq $NEXT_GRID, %rdx
+            movq $CURR_GRID, %rbx
+            copy_loop_2:
+                cmpq $BUFFER_SIZE, %rcx
+                je end_copy_loop_2
+
+                movq (%rcx,%rdx,1), %rdi
+
+                movq %rdi, (%rcx,%rbx,1)
+
+                addq $8, %rcx
+                jmp copy_loop_2
+            end_copy_loop_2:
+                popq %rdi
+                popq %rbx
+                popq %rdx
+                popq %rcx
+
             #check end condition
             cmpq %rcx, generations
             je endSuccess
