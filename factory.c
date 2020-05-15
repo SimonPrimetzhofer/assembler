@@ -7,14 +7,16 @@
 #define RECIPE_LENGTH 214
 
 /* function definitions */
-static int produceItem(recipe_t* recipe);
-static int computeIngredients(ingredient_list_node_t* ingredient, int amount);
+static recipe_t *findRecipe(char *name);
+static int produceItem(recipe_t* recipe, int amount);
+static void prepareStorage();
+static void printStorage();
 
 /* struct definition */
 struct productionStorageItem {
     int leftoverCount;
     int producedCount;
-    recipe_t recipe;
+    const recipe_t *recipe;
 };
 
 /* Global variables */
@@ -48,27 +50,65 @@ int main(int argc, char **argv) {
     }else item_count = 1;
 
     /* Lookup recipe */
-    int i;
-    recipe_t* found_recipe = NULL;
-    for(i = 0;i < RECIPE_LENGTH; i++) {
-        if(strcmp(item_name, recipes[i].name) == 0) {
-            found_recipe = &recipes[i];
-            break;
-        }
-    }
+    recipe_t* found_recipe = findRecipe(item_name);
 
     if(found_recipe == NULL) {
         fprintf(stderr, "Recipe of %s not found!", item_name);
         return EXIT_FAILURE;
     }
 
-    printf("used materials\n");
-    int ticks = produceItem(found_recipe);
+    /* Prepare storage for producing the item */
+    prepareStorage();
+
+    /* Produce item and calculate ticks */
+    int ticks = produceItem(found_recipe, item_count);
+
+    /* Print output */
+    printf("\nleftover materials:\n");
+    printStorage();
 
     printf("\n\n%d ticks", ticks);
 
     return EXIT_SUCCESS;
 
+}
+
+static recipe_t *findRecipe(char *name) {
+    int i = 0;
+    for(i = 0;i < RECIPE_LENGTH; i++) {
+        if(strcmp(item_name, recipes[i].name) == 0) {
+            return &recipes[i];
+        }
+    }
+    return NULL;
+}
+
+static struct productionStorageItem *findStoragePlace(char *name){
+    int i = 0;
+    for(i = 0;i < RECIPE_LENGTH; i++) {
+        if(strcmp(item_name, storage[i].recipe->name) == 0) {
+            return &storage[i];
+        }
+    }
+    return NULL;
+}
+
+static void printStorage() {
+    int i;
+    for(i = 0; i < RECIPE_LENGTH; i++) {
+        if(storage[i].leftoverCount > 0)
+            fprintf(stdout, "%s: %d\n", storage[i].recipe->name, storage[i].leftoverCount);
+    }
+    printf("\n");
+}
+
+static void prepareStorage() {
+    int i;
+    for(i = 0; i < RECIPE_LENGTH; i++) {
+        storage[i].leftoverCount = 0;
+        storage[i].producedCount = 0;
+        storage[i].recipe = &recipes[i];
+    }
 }
 
 /*
@@ -79,30 +119,45 @@ int main(int argc, char **argv) {
 
 */
 
-/* Produce item by recipe */
-static int produceItem(recipe_t* recipe) {
-    if(item_count % recipe->yield == 0)
-        return item_count * (recipe->time + computeIngredients(recipe->ingredients, 1));
-    fprintf(stdout, "leftover part %s\n", recipe->name);
-    return (item_count + item_count % recipe->yield)/recipe->yield * (recipe->time + computeIngredients(recipe->ingredients, 1));
-}
+static int produceItem(recipe_t* recipe, int amount){
 
-/* Calculate ticks for producing the subelements */
-static int computeIngredients(ingredient_list_node_t* ingredient, int amount) {
-    /* Last ingredient in list was reached */
-    printf("%s %d\n", ingredient->item->name, ingredient->amount);
-    /* Check, if raw material was reached */
-    if(ingredient->item->ingredients == NULL) {
-        printf("%s: %d\n", ingredient->item->name, item_count * amount);
-        return ingredient->item->time; /* return 0 */
+    struct productionStorageItem *storageItem = findStoragePlace(recipe->name);
+
+    /* Item is in storage and therefore, check leftover parts */
+    if(storageItem == NULL) {
+        return 0;
     }
-    /* check if next ingredient is not there */
-    if(ingredient->next == NULL) {
-        /*return ingredient->amount * (ingredient->item->time + computeIngredients(ingredient->item->ingredients, 1));*/
-        return ingredient->item->time + (ingredient->amount * produceItem(ingredient->item));
+    printf("yield: %d\n", recipe->yield);
+    /* Check, if leftover parts are there */
+    int yieldQuotient = 1;
+    if(storageItem->leftoverCount > 0)
+        yieldQuotient = amount % recipe->yield;
+
+    /* Yield Quotient is not a divisor of amount*/
+    if(amount % recipe->yield != 0) {
+        amount += yieldQuotient;
+        amount /= recipe->yield;
+        storageItem->leftoverCount += yieldQuotient;
     }
 
-    /* ingredient->amount evtl. removen */
-    /*return*/ /*ingredient->amount */ /*(ingredient->item->time + computeIngredients(ingredient->item->ingredients, 1)) + computeIngredients(ingredient->next, 1);*/
-    return ingredient->item->time + (produceItem(ingredient->item) * ingredient->amount) + ingredient->next->item->time + (ingredient->next->amount * produceItem(ingredient->next->item));
+    printf("amount: %d, yieldquo: %d\n", amount, yieldQuotient);
+
+    /* No further ingredients */
+    if(recipe->ingredients == NULL) {
+        printf("no furhter ingredients: %s %d\n", recipe->name, amount * recipe->time);
+        return amount * recipe->time;
+    }
+
+    if(recipe->ingredients->next == NULL) {
+        printf("last ingredient: %s %d\n", recipe->name, amount);
+        return (amount * recipe->time)
+            + produceItem(recipe->ingredients->item, amount * recipe->ingredients->amount);
+    }
+
+    printf("ois nu do: %s\n", recipe->name);
+
+    return ((amount * recipe->time) + produceItem(recipe->ingredients->next->item, recipe->ingredients->next->amount * amount))
+        + ((amount * recipe->time) + produceItem(recipe->ingredients->item, recipe->ingredients->amount * amount));
+
 }
+
