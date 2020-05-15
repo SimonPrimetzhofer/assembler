@@ -10,7 +10,7 @@
 static recipe_t *findRecipe(char *name);
 static int produceItem(recipe_t* recipe, int amount);
 static void prepareStorage();
-static void printStorage();
+static void printStorage(char c);
 
 /* struct definition */
 struct productionStorageItem {
@@ -64,10 +64,11 @@ int main(int argc, char **argv) {
     int ticks = produceItem(found_recipe, item_count);
 
     /* Print output */
-    printf("\nleftover materials:\n");
-    printStorage();
+    printStorage('1');
+    printf("\n");
+    printStorage('0');
 
-    printf("\n\n%d ticks", ticks);
+    printf("\n%d ticks", ticks);
 
     return EXIT_SUCCESS;
 
@@ -86,20 +87,33 @@ static recipe_t *findRecipe(char *name) {
 static struct productionStorageItem *findStoragePlace(char *name){
     int i = 0;
     for(i = 0;i < RECIPE_LENGTH; i++) {
-        if(strcmp(item_name, storage[i].recipe->name) == 0) {
+        if(strcmp(name, storage[i].recipe->name) == 0) {
             return &storage[i];
         }
     }
     return NULL;
 }
 
-static void printStorage() {
+static void printStorage(char leftOver) {
     int i;
+    char printHeader = '1';
+
     for(i = 0; i < RECIPE_LENGTH; i++) {
-        if(storage[i].leftoverCount > 0)
+        if(leftOver == '1' && storage[i].leftoverCount > 0){
+            if(printHeader == '1'){
+                printHeader = '0';
+                fprintf(stdout, "%s\n", leftOver == '1' ? "leftover materials" : "used materials");
+            }
             fprintf(stdout, "%s: %d\n", storage[i].recipe->name, storage[i].leftoverCount);
+        }
+        else if(leftOver == '0' && storage[i].producedCount > 0) {
+            if(printHeader == '1'){
+                printHeader = '0';
+                fprintf(stdout, "%s\n", leftOver == '1' ? "leftover materials" : "used materials");
+            }
+            fprintf(stdout, "%s: %d\n", storage[i].recipe->name, storage[i].producedCount);
+        }
     }
-    printf("\n");
 }
 
 static void prepareStorage() {
@@ -121,7 +135,8 @@ static void prepareStorage() {
 
 static int produceItem(recipe_t* recipe, int amount){
 
-    struct productionStorageItem *storageItem = findStoragePlace(recipe->name);
+    struct productionStorageItem* storageItem = findStoragePlace(recipe->name);
+    printf("%s %s\n", storageItem->recipe->name, recipe->name);
 
     /* Item is in storage and therefore, check leftover parts */
     if(storageItem == NULL) {
@@ -145,6 +160,8 @@ static int produceItem(recipe_t* recipe, int amount){
     /* No further ingredients */
     if(recipe->ingredients == NULL) {
         printf("no furhter ingredients: %s %d\n", recipe->name, amount * recipe->time);
+        printf("storage item name: %s\n", storageItem->recipe->name);
+        storageItem->producedCount += amount;
         return amount * recipe->time;
     }
 
