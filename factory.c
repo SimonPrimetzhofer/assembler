@@ -125,12 +125,10 @@ static void prepareStorage() {
     }
 }
 
-/*
-
-    Store data during recursion -> do not modify the data from recipe.c!
-    Only add time in recursion -> no printing -> has to be done afterwards
-    Print afterwards
-
+/* only first two subelements are entered at any time!!!
+    plastic bar of advanced circuit not reached!
+    steel plate not reached
+    lubricant not reached
 */
 
 static int produceItem(recipe_t* recipe, int amount){
@@ -141,7 +139,7 @@ static int produceItem(recipe_t* recipe, int amount){
     if(storageItem == NULL) {
         return 0;
     }
-    printf("yield: %d\n", recipe->yield);
+
     /* Check, if leftover parts are there */
     int yieldRest = 1;
     if(storageItem->leftoverCount > 0)
@@ -154,24 +152,28 @@ static int produceItem(recipe_t* recipe, int amount){
         storageItem->leftoverCount += yieldRest;
     }
 
+    int currentItemTicks = amount * recipe->time;
+
     /* No further ingredients */
     if(recipe->ingredients == NULL) {
         printf("no further ingredients: %s %d\n", recipe->name, amount);
         storageItem->producedCount += amount;
-        return amount * recipe->time;
+        return currentItemTicks;
     }
 
     /* Current recipe is last one in list*/
     if(recipe->ingredients->next == NULL) {
         printf("last ingredient: %s %d\n", recipe->name, amount);
-        return (amount * recipe->time)
+
+        /*Check if the last item has further subitems*/
+        return currentItemTicks
             + produceItem(recipe->ingredients->item, amount * recipe->ingredients->amount);
     }
 
-    printf("has next ingredient: %s\n", recipe->name);
+    printf("has next ingredient: %s %d\n", recipe->name, amount);
 
-    return ((amount * recipe->time) + produceItem(recipe->ingredients->next->item, recipe->ingredients->next->amount * amount))
-         + ((amount * recipe->time) + produceItem(recipe->ingredients->item, recipe->ingredients->amount * amount));
-
+    /* ticks of next item of ingredients + ticks of the ingredient's subitems */
+    return currentItemTicks + (produceItem(recipe->ingredients->item, recipe->ingredients->amount * amount))
+        + (produceItem(recipe->ingredients->next->item, recipe->ingredients->next->amount * amount));
 }
 
