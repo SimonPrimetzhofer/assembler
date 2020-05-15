@@ -8,10 +8,19 @@
 
 /* function definitions */
 static int produceItem(recipe_t* recipe);
+static int computeIngredients(ingredient_list_node_t* ingredient, int amount);
+
+/* struct definition */
+struct productionStorageItem {
+    int leftoverCount;
+    int producedCount;
+    recipe_t recipe;
+};
 
 /* Global variables */
 static char* item_name;
 static int item_count;
+static struct productionStorageItem storage[RECIPE_LENGTH];
 
 int main(int argc, char **argv) {
     /* Handle input params */
@@ -55,18 +64,45 @@ int main(int argc, char **argv) {
 
     printf("used materials\n");
     int ticks = produceItem(found_recipe);
+
     printf("\n\n%d ticks", ticks);
 
     return EXIT_SUCCESS;
 
 }
 
-static int produceItem(recipe_t* recipe) {
-    fprintf(stdout, "%s: %d", recipe->ingredients->item->name, recipe->ingredients->amount);
+/*
 
-    if(recipe->ingredients->next == NULL){
-        return recipe->time + (recipe->ingredients->item->time * recipe->ingredients->amount);
+    Store data during recursion -> do not modify the data from recipe.c!
+    Only add time in recursion -> no printing -> has to be done afterwards
+    Print afterwards
+
+*/
+
+/* Produce item by recipe */
+static int produceItem(recipe_t* recipe) {
+    if(item_count % recipe->yield == 0)
+        return item_count * (recipe->time + computeIngredients(recipe->ingredients, 1));
+    fprintf(stdout, "leftover part %s\n", recipe->name);
+    return (item_count + item_count % recipe->yield)/recipe->yield * (recipe->time + computeIngredients(recipe->ingredients, 1));
+}
+
+/* Calculate ticks for producing the subelements */
+static int computeIngredients(ingredient_list_node_t* ingredient, int amount) {
+    /* Last ingredient in list was reached */
+    printf("%s %d\n", ingredient->item->name, ingredient->amount);
+    /* Check, if raw material was reached */
+    if(ingredient->item->ingredients == NULL) {
+        printf("%s: %d\n", ingredient->item->name, item_count * amount);
+        return ingredient->item->time; /* return 0 */
+    }
+    /* check if next ingredient is not there */
+    if(ingredient->next == NULL) {
+        /*return ingredient->amount * (ingredient->item->time + computeIngredients(ingredient->item->ingredients, 1));*/
+        return ingredient->item->time + (ingredient->amount * produceItem(ingredient->item));
     }
 
-    return recipe->time + (recipe->ingredients->item->time * recipe->ingredients->amount) + produceItem(recipe->ingredients->next->item);
+    /* ingredient->amount evtl. removen */
+    /*return*/ /*ingredient->amount */ /*(ingredient->item->time + computeIngredients(ingredient->item->ingredients, 1)) + computeIngredients(ingredient->next, 1);*/
+    return ingredient->item->time + (produceItem(ingredient->item) * ingredient->amount) + ingredient->next->item->time + (ingredient->next->amount * produceItem(ingredient->next->item));
 }
