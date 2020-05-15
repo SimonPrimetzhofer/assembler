@@ -136,7 +136,6 @@ static void prepareStorage() {
 static int produceItem(recipe_t* recipe, int amount){
 
     struct productionStorageItem* storageItem = findStoragePlace(recipe->name);
-    printf("%s %s\n", storageItem->recipe->name, recipe->name);
 
     /* Item is in storage and therefore, check leftover parts */
     if(storageItem == NULL) {
@@ -144,37 +143,35 @@ static int produceItem(recipe_t* recipe, int amount){
     }
     printf("yield: %d\n", recipe->yield);
     /* Check, if leftover parts are there */
-    int yieldQuotient = 1;
+    int yieldRest = 1;
     if(storageItem->leftoverCount > 0)
-        yieldQuotient = amount % recipe->yield;
+        yieldRest = amount % recipe->yield;
 
     /* Yield Quotient is not a divisor of amount*/
     if(amount % recipe->yield != 0) {
-        amount += yieldQuotient;
+        amount += yieldRest;
         amount /= recipe->yield;
-        storageItem->leftoverCount += yieldQuotient;
+        storageItem->leftoverCount += yieldRest;
     }
-
-    printf("amount: %d, yieldquo: %d\n", amount, yieldQuotient);
 
     /* No further ingredients */
     if(recipe->ingredients == NULL) {
-        printf("no furhter ingredients: %s %d\n", recipe->name, amount * recipe->time);
-        printf("storage item name: %s\n", storageItem->recipe->name);
+        printf("no further ingredients: %s %d\n", recipe->name, amount);
         storageItem->producedCount += amount;
         return amount * recipe->time;
     }
 
+    /* Current recipe is last one in list*/
     if(recipe->ingredients->next == NULL) {
         printf("last ingredient: %s %d\n", recipe->name, amount);
         return (amount * recipe->time)
             + produceItem(recipe->ingredients->item, amount * recipe->ingredients->amount);
     }
 
-    printf("ois nu do: %s\n", recipe->name);
+    printf("has next ingredient: %s\n", recipe->name);
 
     return ((amount * recipe->time) + produceItem(recipe->ingredients->next->item, recipe->ingredients->next->amount * amount))
-        + ((amount * recipe->time) + produceItem(recipe->ingredients->item, recipe->ingredients->amount * amount));
+         + ((amount * recipe->time) + produceItem(recipe->ingredients->item, recipe->ingredients->amount * amount));
 
 }
 
