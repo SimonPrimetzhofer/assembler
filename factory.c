@@ -138,22 +138,25 @@ static int produceItem(recipe_t* recipe, int amount){
     ingredient_list_node_t *currentIngredient = recipe->ingredients;
 
     /* Calculate yield */
-    int yieldRest = 1;
-    yieldRest = amount % recipe->yield;
+    int yieldRest = amount % recipe->yield;
     if(amount % recipe->yield != 0) {
         if(amount % recipe->yield == amount){
-            yieldRest = recipe->yield - amount;
-            amount += recipe->yield - amount;
+            yieldRest = recipe->yield - amount /*% recipe->yield*/;
+            amount += yieldRest/*recipe->yield - amount*/;
         }
-        else amount += yieldRest;
-        printf("\n\n%s amount %d yield %d\n", recipe->name, amount, recipe->yield);
-        amount /= recipe->yield;
+        else {
+            /*printf("%s %d\n", recipe->name, amount);*/
+            amount += yieldRest;
+        }
+
+        printf("item %s yieldrest: %d\n", recipe->name, yieldRest);
         storageItem->leftoverCount += yieldRest;
     }
+    amount /= recipe->yield;
 
     /* Check, if the current item has no further ingredients */
     if(currentIngredient == NULL){
-        printf("\t%s %d\n",recipe->name, amount);
+        printf("\t%s %d yield: %d\n",recipe->name, amount, recipe->yield);
         storageItem->producedCount += amount;
         return recipe->time * amount; /* equals return 0, since recipe->time of a raw material is 0 */
     }
@@ -162,11 +165,11 @@ static int produceItem(recipe_t* recipe, int amount){
     /* Iterate over next elements in the list */
     while(currentIngredient->next != NULL) {
         /*printf("current ingredient: %s\n", currentIngredient->item->name);*/
-        ticks += /*(amount * recipe->time) +*/ produceItem(currentIngredient->item, amount * currentIngredient->amount);
+        ticks += produceItem(currentIngredient->item, amount * currentIngredient->amount);
         currentIngredient = currentIngredient->next;
     }
     /*printf("last ingredient: %s %d\n", currentIngredient->item->name, currentIngredient->amount);*/
-    ticks += /*(amount * recipe->time) +*/ produceItem(currentIngredient->item, amount * currentIngredient->amount);
+    ticks += produceItem(currentIngredient->item, amount * currentIngredient->amount);
 
     return ticks;
 }
