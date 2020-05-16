@@ -141,26 +141,32 @@ static int produceItem(recipe_t* recipe, int amount){
     int yieldRest = 1;
     yieldRest = amount % recipe->yield;
     if(amount % recipe->yield != 0) {
+        if(amount % recipe->yield == amount){
+            yieldRest = recipe->yield - amount;
+            amount += recipe->yield - amount;
+        }
+        else amount += yieldRest;
         printf("\n\n%s amount %d yield %d\n", recipe->name, amount, recipe->yield);
-        amount += yieldRest;
         amount /= recipe->yield;
         storageItem->leftoverCount += yieldRest;
     }
 
     /* Check, if the current item has no further ingredients */
     if(currentIngredient == NULL){
+        printf("\t%s %d\n",recipe->name, amount);
         storageItem->producedCount += amount;
         return recipe->time * amount; /* equals return 0, since recipe->time of a raw material is 0 */
     }
 
+    ticks += amount * recipe->time;
     /* Iterate over next elements in the list */
     while(currentIngredient->next != NULL) {
         /*printf("current ingredient: %s\n", currentIngredient->item->name);*/
-        ticks += (amount * recipe->time) + produceItem(currentIngredient->item, amount * currentIngredient->amount);
+        ticks += /*(amount * recipe->time) +*/ produceItem(currentIngredient->item, amount * currentIngredient->amount);
         currentIngredient = currentIngredient->next;
     }
     /*printf("last ingredient: %s %d\n", currentIngredient->item->name, currentIngredient->amount);*/
-    ticks += (amount * recipe->time) + produceItem(currentIngredient->item, amount * currentIngredient->amount);
+    ticks += /*(amount * recipe->time) +*/ produceItem(currentIngredient->item, amount * currentIngredient->amount);
 
     return ticks;
 }
