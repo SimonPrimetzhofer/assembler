@@ -134,62 +134,34 @@ static void prepareStorage() {
 static int produceItem(recipe_t* recipe, int amount){
 
     int ticks = 0;
-    ingredient_list_node_t *currentIngredient = recipe->ingredients;
-    if(currentIngredient == NULL)
-        return 0;
-    while(currentIngredient->next != NULL) {
-        printf("current ingredient: %s\n", currentIngredient->item->name);
-        ticks += (amount * recipe->time) + produceItem(currentIngredient->item, 1);
-        currentIngredient = currentIngredient->next;
-    }
-    printf("last ingredient: %s\n", currentIngredient->item->name);
-    ticks += (amount * recipe->time) + produceItem(currentIngredient->item, 1);
-
-    return ticks;
-
-    /* OLD VERSION */
-
     struct productionStorageItem* storageItem = findStoragePlace(recipe->name);
+    ingredient_list_node_t *currentIngredient = recipe->ingredients;
 
-    /* Item is in storage and therefore, check leftover parts */
-    if(storageItem == NULL) {
-        return 0;
-    }
-
-    /* Check, if leftover parts are there */
+    /* Calculate yield */
     int yieldRest = 1;
-    if(storageItem->leftoverCount > 0)
-        yieldRest = amount % recipe->yield;
-
-    /* Yield Quotient is not a divisor of amount*/
+    yieldRest = amount % recipe->yield;
     if(amount % recipe->yield != 0) {
+        printf("\n\n%s amount %d yield %d\n", recipe->name, amount, recipe->yield);
         amount += yieldRest;
         amount /= recipe->yield;
         storageItem->leftoverCount += yieldRest;
     }
 
-    int currentItemTicks = amount * recipe->time;
-
-    /* No further ingredients */
-    if(recipe->ingredients == NULL) {
-        printf("no further ingredients: %s %d\n", recipe->name, amount);
+    /* Check, if the current item has no further ingredients */
+    if(currentIngredient == NULL){
         storageItem->producedCount += amount;
-        return currentItemTicks; /* equals return 0 since the recipe time of raw materials is 0 */
+        return recipe->time * amount; /* equals return 0, since recipe->time of a raw material is 0 */
     }
 
-    /* Current recipe is last one in list*/
-    if(recipe->ingredients->next == NULL) {
-        printf("last ingredient: %s %d\n", recipe->name, amount);
-
-        /*Check if the last item has further subitems*/
-        return currentItemTicks
-            + produceItem(recipe->ingredients->item, amount * recipe->ingredients->amount);
+    /* Iterate over next elements in the list */
+    while(currentIngredient->next != NULL) {
+        /*printf("current ingredient: %s\n", currentIngredient->item->name);*/
+        ticks += (amount * recipe->time) + produceItem(currentIngredient->item, amount * currentIngredient->amount);
+        currentIngredient = currentIngredient->next;
     }
+    /*printf("last ingredient: %s %d\n", currentIngredient->item->name, currentIngredient->amount);*/
+    ticks += (amount * recipe->time) + produceItem(currentIngredient->item, amount * currentIngredient->amount);
 
-    printf("has next ingredient: %s %d\n", recipe->name, amount);
-
-    /* ticks of next item of ingredients + ticks of the ingredient's subitems */
-    return currentItemTicks + (produceItem(recipe->ingredients->item, recipe->ingredients->amount * amount)) /* current ingredient */
-        + (produceItem(recipe->ingredients->next->item, recipe->ingredients->next->amount * amount)); /* next ingredient */
+    return ticks;
 }
 
