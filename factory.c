@@ -133,6 +133,22 @@ static void prepareStorage() {
 
 static int produceItem(recipe_t* recipe, int amount){
 
+    int ticks = 0;
+    ingredient_list_node_t *currentIngredient = recipe->ingredients;
+    if(currentIngredient == NULL)
+        return 0;
+    while(currentIngredient->next != NULL) {
+        printf("current ingredient: %s\n", currentIngredient->item->name);
+        ticks += (amount * recipe->time) + produceItem(currentIngredient->item, 1);
+        currentIngredient = currentIngredient->next;
+    }
+    printf("last ingredient: %s\n", currentIngredient->item->name);
+    ticks += (amount * recipe->time) + produceItem(currentIngredient->item, 1);
+
+    return ticks;
+
+    /* OLD VERSION */
+
     struct productionStorageItem* storageItem = findStoragePlace(recipe->name);
 
     /* Item is in storage and therefore, check leftover parts */
@@ -158,7 +174,7 @@ static int produceItem(recipe_t* recipe, int amount){
     if(recipe->ingredients == NULL) {
         printf("no further ingredients: %s %d\n", recipe->name, amount);
         storageItem->producedCount += amount;
-        return currentItemTicks;
+        return currentItemTicks; /* equals return 0 since the recipe time of raw materials is 0 */
     }
 
     /* Current recipe is last one in list*/
@@ -173,7 +189,7 @@ static int produceItem(recipe_t* recipe, int amount){
     printf("has next ingredient: %s %d\n", recipe->name, amount);
 
     /* ticks of next item of ingredients + ticks of the ingredient's subitems */
-    return currentItemTicks + (produceItem(recipe->ingredients->item, recipe->ingredients->amount * amount))
-        + (produceItem(recipe->ingredients->next->item, recipe->ingredients->next->amount * amount));
+    return currentItemTicks + (produceItem(recipe->ingredients->item, recipe->ingredients->amount * amount)) /* current ingredient */
+        + (produceItem(recipe->ingredients->next->item, recipe->ingredients->next->amount * amount)); /* next ingredient */
 }
 
