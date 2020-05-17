@@ -8,7 +8,7 @@
 
 /* function definitions */
 static recipe_t *findRecipe(char *name);
-static int produceItem(recipe_t* recipe, int amount);
+static int produceItem(recipe_t *recipe, int amount);
 static void prepareStorage();
 static void printStorage(char c);
 
@@ -184,7 +184,6 @@ static int produceItem(recipe_t* recipe, int amount){
 
     /* Add overall ticks of parent item */
     ticks += amount * recipe->time;
-
     /* Iterate over next elements in the ingredients list */
     while(currentIngredient->next != NULL) {
         /* Add ticks of ingredient */
@@ -197,4 +196,3 @@ static int produceItem(recipe_t* recipe, int amount){
 
     return ticks;
 }
-
