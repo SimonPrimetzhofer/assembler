@@ -164,9 +164,12 @@ static int produceItem(recipe_t* recipe, int amount){
     int yieldRest = amount % recipe->yield;
     /* amount is not a multiple of yield */
     if(amount % recipe->yield != 0) {
+
+        /* amount == yieldRest, if amount is smaller than yield -> get difference then */
+        if(amount == yieldRest)
+            yieldRest = recipe->yield - amount;
         /* Add rest to amount to reach amount % yield == 0 for division */
         amount += yieldRest;
-
         /* yieldRest is added to the item's leftover count */
         storageItem->leftoverCount += yieldRest;
     }
