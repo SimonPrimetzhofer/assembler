@@ -17,7 +17,8 @@ struct traversal_node {
     int id;
     struct person info;
     char visited;
-    struct traversal_node *nextFriend;
+    int friendcount;
+    struct traversal_node **friends;
 };
 
 /* typedefs */
@@ -71,7 +72,8 @@ int main(int argc, char **argv){
     int count = 0;
     int elementsCount = 0;
     char input_buffer[INPUT_BUFFER_LENGTH];
-    const char *delimiter = ",";
+    const char *peopleDelimiter = ",";
+    const char *relationshipDelimiter = "<->";
     char readRelationships = '0';
 
     for(count = 0;;count++) {
@@ -79,8 +81,13 @@ int main(int argc, char **argv){
         /* receive line */
         int ret = fscanf(data, "%s", input_buffer);
 
-        if(ret == EOF)
+        if(ret == EOF){
+            if(readRelationships == '0'){
+                fprintf(stderr, "~ delimiter line is missing!");
+                return EXIT_FAILURE;
+            }
             break;
+        }
 
         /* Check for delimiter line which contains at least one ~ */
         char *tilde = strchr(input_buffer, (int) '~');
@@ -91,28 +98,38 @@ int main(int argc, char **argv){
         /* reading people finished, not get relationships */
         if(readRelationships == '1' && tilde == NULL){
             printf("current relationline %s\n", input_buffer);
+            /*char *delimited = strtok(input_buffer, relationshipDelimiter);
+            int left = strtol(delimited, NULL, 10);
+            if(left < 1) return EXIT_FAILURE;
+            delimited = strtok(NULL, relationshipDelimiter);
+            int right = strtol(delimited, NULL, 10);
+            if(right < 1) return EXIT_FAILURE;*/
+
+            /*if(traversal_nodes[left]->friends == NULL) {
+                 allocate space for first element, if not done yet */
+                /*traversal_nodes[left]->friends = (traversal_node_t **) malloc(sizeof(traversal_node_t *));
+            }*/
 
         } else if(readRelationships == '0') { /* read another person | else if, because the tilde line should be skipped */
-            printf("current personline %s\n", input_buffer);
             elementsCount++;
             /* reallocate memory */
             traversal_nodes = (traversal_node_t **) realloc(traversal_nodes, sizeof(traversal_node_t *) * elementsCount);
             traversal_nodes[count] = (traversal_node_t *) malloc(sizeof(traversal_node_t));
-            if(traversal_nodes[count] == NULL){
+
+            if(traversal_nodes == NULL || traversal_nodes[count] == NULL){
                 return EXIT_FAILURE;
             }
 
             traversal_nodes[count]->id = count + 1;
 
             /* split input buffer by ',' */
-            char *delimited = strtok(input_buffer, delimiter);
+            char *delimited = strtok(input_buffer, peopleDelimiter);
             /* get string parts split by ',' */
             while(delimited != NULL) {
                 char *strPart;
                 int numberPart = strtol(delimited, &strPart, 10);
 
                 if(*strPart != '\0') {
-                    printf("stringpart %s\n", strPart);
                     /* Check if firstname or lastname has to be set */
                     if(traversal_nodes[count]->info.firstname == NULL) {
                         traversal_nodes[count]->info.firstname = (char *) malloc(strlen(strPart));
@@ -122,11 +139,18 @@ int main(int argc, char **argv){
                         traversal_nodes[count]->info.lastname = (char *) malloc(strlen(strPart));
                         strcpy(traversal_nodes[count]->info.lastname, strPart);
                     }
-                    /* else error */
+                    else return EXIT_FAILURE;
+
                 } else if(numberPart != 0) {
-                    /*if(traversal_nodes[count].info.year == NULL)*/
+                    if(traversal_nodes[count]->info.year == 0) {
+                        traversal_nodes[count]->info.year = numberPart;
+                    } else if(traversal_nodes[count]->info.month == 0) {
+                        traversal_nodes[count]->info.month = numberPart;
+                    } else if(traversal_nodes[count]->info.day == 0) {
+                        traversal_nodes[count]->info.day = numberPart;
+                    } else return EXIT_FAILURE;
                 }
-                delimited = strtok(NULL, delimiter);
+                delimited = strtok(NULL, peopleDelimiter);
             }
         }
     }
@@ -152,7 +176,8 @@ static void printData(traversal_node_t **nodes, int count) {
     printf("%d\n", count);
     int index;
     for(index = 0; index < count; index++) {
-        printf("%d %s %s\n", nodes[index]->id, nodes[index]->info.firstname, nodes[index]->info.lastname);
+        printf("[%d] %s %s, born %d-%d-%d has ... friends: ... ...\n", nodes[index]->id, nodes[index]->info.firstname, nodes[index]->info.lastname,
+                                                                       nodes[index]->info.year, nodes[index]->info.month, nodes[index]->info.day);
     }
 }
 
