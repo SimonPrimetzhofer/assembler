@@ -29,6 +29,7 @@ typedef struct traversal_node traversal_node_t;
 static void handleError(FILE *file, char *message);
 static void addRelationship(traversal_node_t *person1, traversal_node_t* person2);
 static void printData(traversal_node_t **nodes, int count);
+static void printFriendsById(traversal_node_t *node);
 
 int main(int argc, char **argv){
 
@@ -98,17 +99,24 @@ int main(int argc, char **argv){
         /* reading people finished, not get relationships */
         if(readRelationships == '1' && tilde == NULL){
             printf("current relationline %s\n", input_buffer);
-            /*char *delimited = strtok(input_buffer, relationshipDelimiter);
+            char *delimited = strtok(input_buffer, relationshipDelimiter);
             int left = strtol(delimited, NULL, 10);
             if(left < 1) return EXIT_FAILURE;
             delimited = strtok(NULL, relationshipDelimiter);
             int right = strtol(delimited, NULL, 10);
-            if(right < 1) return EXIT_FAILURE;*/
+            if(right < 1) return EXIT_FAILURE;
 
-            /*if(traversal_nodes[left]->friends == NULL) {
-                 allocate space for first element, if not done yet */
-                /*traversal_nodes[left]->friends = (traversal_node_t **) malloc(sizeof(traversal_node_t *));
-            }*/
+            printf("%d %d\n", left, right);
+
+            if(traversal_nodes[left-1]->friends == NULL) {
+                 /* allocate space for first element, if not done yet */
+                traversal_nodes[left-1]->friends = (traversal_node_t **) malloc(sizeof(traversal_node_t *));
+            }
+            /* add new friend to count */
+            traversal_nodes[left-1]->friends[traversal_nodes[left-1]->friendcount] = traversal_nodes[right-1];
+            traversal_nodes[left-1]->friendcount++;
+
+
 
         } else if(readRelationships == '0') { /* read another person | else if, because the tilde line should be skipped */
             elementsCount++;
@@ -176,9 +184,24 @@ static void printData(traversal_node_t **nodes, int count) {
     printf("%d\n", count);
     int index;
     for(index = 0; index < count; index++) {
-        printf("[%d] %s %s, born %d-%d-%d has ... friends: ... ...\n", nodes[index]->id, nodes[index]->info.firstname, nodes[index]->info.lastname,
-                                                                       nodes[index]->info.year, nodes[index]->info.month, nodes[index]->info.day);
+        char *friendsWord = nodes[index]->friendcount == 1 ? "friend" : "friends";
+        printf("[%d] %s %s, born %d-%d-%d has %d %s: ", nodes[index]->id, nodes[index]->info.firstname, nodes[index]->info.lastname,
+                                                                       nodes[index]->info.year, nodes[index]->info.month, nodes[index]->info.day,
+                                                                       nodes[index]->friendcount, friendsWord);
+        printFriendsById(nodes[index]);
     }
+}
+
+static void printFriendsById(traversal_node_t *node) {
+    if(node->friendcount < 1) {
+        printf("\n");
+        return;
+    }
+    int index;
+    for(index = 0; index < node->friendcount - 1; index++) {
+        printf("%d, ", node->friends[index]->id);
+    }
+    printf("%d\n", node->friends[index]->id);
 }
 
 static void handleError(FILE *data, char *message) {
