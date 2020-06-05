@@ -29,7 +29,36 @@ typedef struct traversal_node traversal_node_t;
 static void handleError(FILE *file, char *message);
 static void addRelationship(traversal_node_t *person1, traversal_node_t* person2);
 static void printData(traversal_node_t **nodes, int count);
-static void printFriendsById(traversal_node_t *node);
+static void printFriendsByNode(traversal_node_t *node);
+
+int compareFunction(const void *first, const void *second) {
+    traversal_node_t *node1 = *(traversal_node_t **)first;
+    traversal_node_t *node2 = *(traversal_node_t **)second;
+
+    int cmpLastname = strcmp(node1->info.lastname, node2->info.lastname);
+    if(cmpLastname == 0) {
+        int cmpFirstname = strcmp(node1->info.firstname, node2->info.firstname);
+        if(cmpFirstname == 0) {
+            int cmpYear = node1->info.year - node2->info.year;
+            if(cmpYear == 0) {
+                int cmpMonth = node1->info.month - node2->info.month;
+                if(cmpMonth == 0) {
+                    int cmpDay = node1->info.day - node2->info.day;
+                    if(cmpDay == 0) {
+                        int cmpFriends = node1->friendcount - node2->friendcount;
+                        return cmpFriends;
+                    }
+                    return cmpDay;
+                }
+                return cmpMonth;
+            }
+            return cmpYear;
+        }
+        return cmpFirstname;
+    }
+
+    return cmpLastname;
+}
 
 int main(int argc, char **argv){
 
@@ -46,7 +75,6 @@ int main(int argc, char **argv){
         fprintf(stderr, "File path is not valid!\n");
         return EXIT_FAILURE;
     }
-    printf("%s\n", filePath);
 
     argv++;
     const int startId = strtol(*(argv), NULL, 10);
@@ -55,7 +83,6 @@ int main(int argc, char **argv){
         handleError(data, "StartID is not a valid number!\n");
         return EXIT_FAILURE;
     }
-    printf("%d\n", startId);
 
     argv++;
     const int depth = strtol(*(argv), NULL, 10);
@@ -63,7 +90,6 @@ int main(int argc, char **argv){
         handleError(data, "Depth is not a valid number!\n");
         return EXIT_FAILURE;
     }
-    printf("%d\n", depth);
 
     /* Reading */
     traversal_node_t **traversal_nodes = (traversal_node_t **) malloc(sizeof(traversal_node_t *));
@@ -98,15 +124,12 @@ int main(int argc, char **argv){
 
         /* reading people finished, not get relationships */
         if(readRelationships == '1' && tilde == NULL){
-            printf("current relationline %s\n", input_buffer);
             char *delimited = strtok(input_buffer, relationshipDelimiter);
             int left = strtol(delimited, NULL, 10);
             if(left < 1) return EXIT_FAILURE;
             delimited = strtok(NULL, relationshipDelimiter);
             int right = strtol(delimited, NULL, 10);
             if(right < 1) return EXIT_FAILURE;
-
-            printf("%d %d\n", left, right);
 
             if(traversal_nodes[left-1]->friends == NULL) {
                  /* allocate space for first element, if not done yet */
@@ -164,10 +187,18 @@ int main(int argc, char **argv){
     }
 
     /* all lines read */
+    if(startId > elementsCount) {
+        fprintf(stderr, "Element with id %d does not exist!\n", startId);
+        return EXIT_FAILURE;
+    }
 
     /* traverse */
+    if(depth > 0) {
+
+    }
 
     /* sort */
+    qsort(traversal_nodes, elementsCount, sizeof(traversal_node_t *), compareFunction);
 
     /* print */
     printData(traversal_nodes, elementsCount);
@@ -181,18 +212,17 @@ static void addRelationship(traversal_node_t *person1, traversal_node_t* person2
 }
 
 static void printData(traversal_node_t **nodes, int count) {
-    printf("%d\n", count);
     int index;
     for(index = 0; index < count; index++) {
-        char *friendsWord = nodes[index]->friendcount == 1 ? "friend" : "friends";
-        printf("[%d] %s %s, born %d-%d-%d has %d %s: ", nodes[index]->id, nodes[index]->info.firstname, nodes[index]->info.lastname,
+        char *friendsWord = nodes[index]->friendcount == 1 ? "friend: " : nodes[index]->friendcount == 0 ? "friends" : "friends: ";
+        printf("[%d] %s %s, born %d-%d-%d has %d %s", nodes[index]->id, nodes[index]->info.firstname, nodes[index]->info.lastname,
                                                                        nodes[index]->info.year, nodes[index]->info.month, nodes[index]->info.day,
                                                                        nodes[index]->friendcount, friendsWord);
-        printFriendsById(nodes[index]);
+        printFriendsByNode(nodes[index]);
     }
 }
 
-static void printFriendsById(traversal_node_t *node) {
+static void printFriendsByNode(traversal_node_t *node) {
     if(node->friendcount < 1) {
         printf("\n");
         return;
