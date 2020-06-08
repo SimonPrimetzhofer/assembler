@@ -3,7 +3,9 @@
 #include <string.h>
 
 #define LINE_ARGS 1
+#define NAME_LENGTH 20
 #define INPUT_BUFFER_LENGTH 50
+
 /* struct definitions */
 struct person {
     char *lastname;
@@ -30,6 +32,7 @@ static void handleError(FILE *file, char *message);
 static void addRelationship(traversal_node_t *person1, traversal_node_t* person2);
 static void printData(traversal_node_t **nodes, int count);
 static void printFriendsByNode(traversal_node_t *node);
+static void freeMemory(traversal_node_t **traversal_nodes, int count);
 
 int compareFunction(const void *first, const void *second) {
     traversal_node_t *node1 = *(traversal_node_t **)first;
@@ -39,11 +42,11 @@ int compareFunction(const void *first, const void *second) {
     if(cmpLastname == 0) {
         int cmpFirstname = strcmp(node1->info.firstname, node2->info.firstname);
         if(cmpFirstname == 0) {
-            int cmpYear = node1->info.year - node2->info.year;
+            int cmpYear = node2->info.year - node1->info.year;
             if(cmpYear == 0) {
-                int cmpMonth = node1->info.month - node2->info.month;
+                int cmpMonth = node2->info.month - node1->info.month;
                 if(cmpMonth == 0) {
-                    int cmpDay = node1->info.day - node2->info.day;
+                    int cmpDay = node2->info.day - node1->info.day;
                     if(cmpDay == 0) {
                         int cmpFriends = node1->friendcount - node2->friendcount;
                         return cmpFriends;
@@ -90,10 +93,16 @@ int main(int argc, char **argv){
         handleError(data, "Depth is not a valid number!\n");
         return EXIT_FAILURE;
     }
+    /* depth has to be bigger than one - but i guess that >= 1 is correct, since three_in 1 1 cannot produce the expected result! */
+    if(depth < 1) {
+        handleError(data, "Depth has to be bigger than one!\n");
+        return EXIT_FAILURE;
+    }
 
     /* Reading */
-    traversal_node_t **traversal_nodes = (traversal_node_t **) malloc(sizeof(traversal_node_t *));
+    traversal_node_t **traversal_nodes = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
     if(traversal_nodes == NULL) {
+        fprintf(stderr, "Memory could not be allocated!\n");
         return EXIT_FAILURE;
     }
     int count = 0;
@@ -133,21 +142,31 @@ int main(int argc, char **argv){
 
             if(traversal_nodes[left-1]->friends == NULL) {
                  /* allocate space for first element, if not done yet */
-                traversal_nodes[left-1]->friends = (traversal_node_t **) malloc(sizeof(traversal_node_t *));
+                traversal_nodes[left-1]->friends = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
+                if(traversal_nodes[left-1]->friends == NULL) printf("oida");
+            }
+            if(traversal_nodes[right-1]->friends == NULL) {
+                /* allocate space for first element, if not done yet */
+                traversal_nodes[right-1]->friends = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
+                if(traversal_nodes[right-1]->friends == NULL) printf("oida");
             }
             /* add new friend to count */
             traversal_nodes[left-1]->friends[traversal_nodes[left-1]->friendcount] = traversal_nodes[right-1];
+            traversal_nodes[right-1]->friends[traversal_nodes[right-1]->friendcount] = traversal_nodes[left-1];
             traversal_nodes[left-1]->friendcount++;
-
-
+            traversal_nodes[right-1]->friendcount++;
 
         } else if(readRelationships == '0') { /* read another person | else if, because the tilde line should be skipped */
             elementsCount++;
             /* reallocate memory */
             traversal_nodes = (traversal_node_t **) realloc(traversal_nodes, sizeof(traversal_node_t *) * elementsCount);
-            traversal_nodes[count] = (traversal_node_t *) malloc(sizeof(traversal_node_t));
-
-            if(traversal_nodes == NULL || traversal_nodes[count] == NULL){
+            if(traversal_nodes == NULL) {
+                handleError(data, "Nodes pointer could not be reallocated!");
+                return EXIT_FAILURE;
+            }
+            traversal_nodes[count] = (traversal_node_t *) calloc(1, sizeof(traversal_node_t));
+            if(traversal_nodes[count] == NULL) {
+                handleError(data, "New node could not be added!");
                 return EXIT_FAILURE;
             }
 
@@ -163,14 +182,17 @@ int main(int argc, char **argv){
                 if(*strPart != '\0') {
                     /* Check if firstname or lastname has to be set */
                     if(traversal_nodes[count]->info.firstname == NULL) {
-                        traversal_nodes[count]->info.firstname = (char *) malloc(strlen(strPart));
-                        strcpy(traversal_nodes[count]->info.firstname, strPart);
+                        traversal_nodes[count]->info.firstname = (char *) calloc(1, sizeof(char) * NAME_LENGTH);
+                        strncpy(traversal_nodes[count]->info.firstname, strPart, NAME_LENGTH);
                     }
                     else if(traversal_nodes[count]->info.lastname == NULL) {
-                        traversal_nodes[count]->info.lastname = (char *) malloc(strlen(strPart));
-                        strcpy(traversal_nodes[count]->info.lastname, strPart);
+                        traversal_nodes[count]->info.lastname = (char *) calloc(1, sizeof(char) * NAME_LENGTH);
+                        strncpy(traversal_nodes[count]->info.lastname, strPart, NAME_LENGTH);
                     }
-                    else return EXIT_FAILURE;
+                    else {
+                        handleError(data, "no space for name!");
+                        return EXIT_FAILURE;
+                    }
 
                 } else if(numberPart != 0) {
                     if(traversal_nodes[count]->info.year == 0) {
@@ -179,7 +201,10 @@ int main(int argc, char **argv){
                         traversal_nodes[count]->info.month = numberPart;
                     } else if(traversal_nodes[count]->info.day == 0) {
                         traversal_nodes[count]->info.day = numberPart;
-                    } else return EXIT_FAILURE;
+                    }else {
+                        handleError(data, "no space for number!");
+                        return EXIT_FAILURE;
+                    }
                 }
                 delimited = strtok(NULL, peopleDelimiter);
             }
@@ -193,9 +218,13 @@ int main(int argc, char **argv){
     }
 
     /* traverse */
-    if(depth > 0) {
-
+    traversal_node_t *startNode = traversal_nodes[startId];
+    if(startNode == NULL) {
+        handleError(data, "Element at startId does not exist!\n");
+        return EXIT_FAILURE;
     }
+
+
 
     /* sort */
     qsort(traversal_nodes, elementsCount, sizeof(traversal_node_t *), compareFunction);
@@ -203,7 +232,8 @@ int main(int argc, char **argv){
     /* print */
     printData(traversal_nodes, elementsCount);
 
-    free(traversal_nodes);
+    freeMemory(traversal_nodes, elementsCount);
+
     fclose(data);
     return EXIT_SUCCESS;
 }
@@ -232,6 +262,25 @@ static void printFriendsByNode(traversal_node_t *node) {
         printf("%d, ", node->friends[index]->id);
     }
     printf("%d\n", node->friends[index]->id);
+}
+
+static void freeMemory(traversal_node_t **traversal_nodes, int count) {
+    int index;
+    /* loop for freeing dynamically allocated memory */
+    for(index = 0; index < count; index++) {
+        /* Free first- and lastname */
+        free(traversal_nodes[index]->info.lastname);
+        free(traversal_nodes[index]->info.firstname);
+
+        /* traversal_nodes[index]->friends do not have to be free'd here
+           since they free themselves */
+        /* free traversal_node itself */
+        free(traversal_nodes[index]);
+    }
+
+    /* free array of traversal_nodes */
+    free(traversal_nodes);
+
 }
 
 static void handleError(FILE *data, char *message) {
