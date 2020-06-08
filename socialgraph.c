@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define LINE_ARGS 1
+#define CONVERSION_BASE 10
 #define NAME_LENGTH 20
-#define INPUT_BUFFER_LENGTH 50
+#define INPUT_BUFFER_LENGTH 100 /* definitely enough space for one line */
 
 /* struct definitions */
 
@@ -37,12 +37,14 @@ static void close_file(FILE *file);
 static void handleError(char *message);
 static void freeMemory();
 
-static int addRelationship(traversal_node_t *person1, traversal_node_t* person2);
+static void readTraversalData();
+static void addRelationship(traversal_node_t *person1, traversal_node_t* person2);
 static void traverseDepth(traversal_node_t *node, int depth);
 static void sort();
-
 static void printData();
 static void printFriendsByNode(traversal_node_t *node);
+
+static int convertStringToNum(char *numberString, char **stringPart);
 
 
 /*
@@ -59,16 +61,22 @@ int compareFunction(const void *first, const void *second) {
     traversal_node_t *node1 = *(traversal_node_t **)first;
     traversal_node_t *node2 = *(traversal_node_t **)second;
 
+    /* ascendig lastname - compare with strcmp */
     int cmpLastname = strcmp(node1->info.lastname, node2->info.lastname);
     if(cmpLastname == 0) {
+        /* ascending firstname - compare with strcmp */
         int cmpFirstname = strcmp(node1->info.firstname, node2->info.firstname);
         if(cmpFirstname == 0) {
+            /* date of birth descending */
             int cmpYear = node2->info.year - node1->info.year;
             if(cmpYear == 0) {
+                /* date of birth descending */
                 int cmpMonth = node2->info.month - node1->info.month;
                 if(cmpMonth == 0) {
+                    /* date of birth descending */
                     int cmpDay = node2->info.day - node1->info.day;
                     if(cmpDay == 0) {
+                        /* ascending friendcount */
                         int cmpFriends = node1->friendcount - node2->friendcount;
                         return cmpFriends;
                     }
@@ -84,6 +92,11 @@ int compareFunction(const void *first, const void *second) {
     return cmpLastname;
 }
 
+/* Global variables */
+FILE *file = NULL; /* possibility to close file at any time */
+traversal_node_t **traversal_nodes = NULL; /* access traversal_nodes at any time */
+int traversal_node_count = 0; /* must be able to access number of traversal_nodes as well */
+
 /*
     purpose: read data from text-file
              create set of structs from file data
@@ -98,11 +111,6 @@ int compareFunction(const void *first, const void *second) {
             EXIT_SUCCESS - no errror occured and program executed successfully
 
 */
-
-/* Global variables */
-FILE *file = NULL;
-traversal_node_t **traversal_nodes = NULL;
-int traversal_node_count = 0;
 
 int main(int argc, char **argv){
 
@@ -143,116 +151,7 @@ int main(int argc, char **argv){
         return EXIT_FAILURE;
     }
 
-    /* Reading */
-    traversal_nodes = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
-    if(traversal_nodes == NULL) {
-        fprintf(stderr, "Memory could not be allocated!\n");
-        return EXIT_FAILURE;
-    }
-    int count = 0;
-    char input_buffer[INPUT_BUFFER_LENGTH];
-    const char *peopleDelimiter = ",";
-    const char *relationshipDelimiter = "<->";
-    char readRelationships = '0';
-
-    for(count = 0;;count++) {
-
-        /* receive line */
-        int ret = fscanf(file, "%s", input_buffer);
-
-        if(ret == EOF){
-            if(readRelationships == '0'){
-                fprintf(stderr, "~ delimiter line is missing!");
-                return EXIT_FAILURE;
-            }
-            break;
-        }
-
-        /* Check for delimiter line which contains at least one ~ */
-        char *tilde = strchr(input_buffer, (int) '~');
-        if(tilde != NULL) {
-            readRelationships = '1';
-        }
-
-        /* reading people finished, now get relationships */
-        if(readRelationships == '1' && tilde == NULL){ /* tilde == NULL checks, if the current line is not the tilde line */
-            char *delimited = strtok(input_buffer, relationshipDelimiter);
-            int left = strtol(delimited, NULL, 10);
-            if(left < 1) return EXIT_FAILURE;
-            delimited = strtok(NULL, relationshipDelimiter);
-            int right = strtol(delimited, NULL, 10);
-            if(right < 1) return EXIT_FAILURE;
-
-            if(traversal_nodes[left-1]->friends == NULL) {
-                 /* allocate space for first element, if not done yet */
-                traversal_nodes[left-1]->friends = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
-                if(traversal_nodes[left-1]->friends == NULL) printf("oida");
-            }
-            if(traversal_nodes[right-1]->friends == NULL) {
-                /* allocate space for first element, if not done yet */
-                traversal_nodes[right-1]->friends = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
-                if(traversal_nodes[right-1]->friends == NULL) printf("oida");
-            }
-            /* add new friend to count */
-            traversal_nodes[left-1]->friends[traversal_nodes[left-1]->friendcount] = traversal_nodes[right-1];
-            traversal_nodes[right-1]->friends[traversal_nodes[right-1]->friendcount] = traversal_nodes[left-1];
-            traversal_nodes[left-1]->friendcount++;
-            traversal_nodes[right-1]->friendcount++;
-
-        } else if(readRelationships == '0') { /* read another person | else if, because the tilde line should be skipped */
-            traversal_node_count++;
-            /* reallocate memory */
-            traversal_nodes = (traversal_node_t **) realloc(traversal_nodes, sizeof(traversal_node_t *) * traversal_node_count);
-            if(traversal_nodes == NULL) {
-                handleError("Nodes pointer could not be reallocated!");
-                return EXIT_FAILURE;
-            }
-            traversal_nodes[count] = (traversal_node_t *) calloc(1, sizeof(traversal_node_t));
-            if(traversal_nodes[count] == NULL) {
-                handleError("New node could not be added!");
-                return EXIT_FAILURE;
-            }
-
-            traversal_nodes[count]->id = count + 1;
-
-            /* split input buffer by ',' */
-            char *delimited = strtok(input_buffer, peopleDelimiter);
-            /* get string parts split by ',' */
-            while(delimited != NULL) {
-                char *strPart;
-                int numberPart = strtol(delimited, &strPart, 10);
-
-                if(*strPart != '\0') {
-                    /* Check if firstname or lastname has to be set */
-                    if(traversal_nodes[count]->info.firstname == NULL) {
-                        traversal_nodes[count]->info.firstname = (char *) calloc(1, sizeof(char) * NAME_LENGTH);
-                        strncpy(traversal_nodes[count]->info.firstname, strPart, NAME_LENGTH);
-                    }
-                    else if(traversal_nodes[count]->info.lastname == NULL) {
-                        traversal_nodes[count]->info.lastname = (char *) calloc(1, sizeof(char) * NAME_LENGTH);
-                        strncpy(traversal_nodes[count]->info.lastname, strPart, NAME_LENGTH);
-                    }
-                    else {
-                        handleError("no space for name!");
-                        return EXIT_FAILURE;
-                    }
-
-                } else if(numberPart != 0) {
-                    if(traversal_nodes[count]->info.year == 0) {
-                        traversal_nodes[count]->info.year = numberPart;
-                    } else if(traversal_nodes[count]->info.month == 0) {
-                        traversal_nodes[count]->info.month = numberPart;
-                    } else if(traversal_nodes[count]->info.day == 0) {
-                        traversal_nodes[count]->info.day = numberPart;
-                    }else {
-                        handleError("no space for number!");
-                        return EXIT_FAILURE;
-                    }
-                }
-                delimited = strtok(NULL, peopleDelimiter);
-            }
-        }
-    }
+    readTraversalData();
 
     /* all lines read */
     if(startId > traversal_node_count) {
@@ -276,9 +175,11 @@ int main(int argc, char **argv){
     /* print */
     printData();
 
+    /* cleanup */
+    fclose(file);
     freeMemory();
 
-    fclose(file);
+    /* exit with success */
     return EXIT_SUCCESS;
 }
 
@@ -360,9 +261,176 @@ static void freeMemory() {
     free(traversal_nodes);
 }
 
+/*
+    purpose: read data from file and create dynamic array of structs
+    author: simon primetzhofer
+    input: none
+    output: none
+*/
+static void readTraversalData() {
+    /* allocate space for first element */
+    traversal_nodes = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
+    if(traversal_nodes == NULL) {
+        handleError("Memory could not be allocated!\n");
+    }
 
-static int addRelationship(traversal_node_t *person1, traversal_node_t* person2) {
-    return 0;
+    /* local variables */
+    /* loop counter that counts until no more lines are available (EOF reached) */
+    int count;
+
+    /* holds input line which is a string of an unknown length */
+    /* INPUT_BUFFER_LENGTH is a value which is big enough but not too big */
+    char input_buffer[INPUT_BUFFER_LENGTH];
+
+    /* delimiters for input lines */
+    const char *peopleDelimiter = ",";
+    const char *relationshipDelimiter = "<->";
+
+    /* indicates, if people or relationships are read in at the moment */
+    char readRelationships = '0';
+
+    for(count = 0;;count++) {
+        /*
+            receive line
+            not possible to get independent values... only on string which contains everything
+        */
+        int ret = fscanf(file, "%s", input_buffer);
+
+        /* check, if end of file was reached */
+        if(ret == EOF){
+            /* if EOF was reached and no delimiterline was present yet, that's an error */
+            if(readRelationships == '0'){
+                handleError("~ delimiter line is missing!\n");
+            }
+
+            /* stop loop at end of file */
+            break;
+        }
+
+        /* Check for delimiter line which contains at least one ~ */
+        char *tilde = strchr(input_buffer, (int) '~');
+        if(tilde != NULL) {
+            /* if tilde was found inside input_buffer, now relationships are read */
+            readRelationships = '1';
+        }
+
+        /* i actually have no idea how to check the LF, since \n seems to not get read into input_buffer by fscanf */
+
+        /* reading people finished, now get relationships */
+        /* tilde == NULL checks, if the current line is not the tilde line */
+        if(readRelationships == '1' && tilde == NULL){
+            /* delimit relationshipline by <-> */
+            char *delimited = strtok(input_buffer, relationshipDelimiter);
+
+            /* get left value (convert string to int) */
+            int left = convertStringToNum(delimited, NULL);
+
+            /* get right value */
+            delimited = strtok(NULL, relationshipDelimiter);
+            int right = convertStringToNum(delimited, NULL);
+
+            /* if one of the two elements is < 1, we cannot continue
+                since these elements do not exist at any time */
+            if(left < 1 || right < 1) {
+                handleError("Element with id smaller than one does not exist!\n");
+            };
+
+            /* check if one relationship was already added -> if not, allocate new space */
+            if(traversal_nodes[left-1]->friends == NULL) {
+                 /* allocate space for first element, if not done yet */
+                traversal_nodes[left-1]->friends = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
+                /* if it is still NULL after allocation, handle error */
+                if(traversal_nodes[left-1]->friends == NULL)
+                    handleError("Right part of relationship cannot allocate memory!");
+            }
+            if(traversal_nodes[right-1]->friends == NULL) {
+                /* allocate space for first element, if not done yet */
+                traversal_nodes[right-1]->friends = (traversal_node_t **) calloc(1, sizeof(traversal_node_t *));
+                /* if it is still NULL after allocation, handle error */
+                if(traversal_nodes[right-1]->friends == NULL)
+                    handleError("Right part of relationship cannot allocate memory!");
+            }
+
+            /* add relationship */
+            addRelationship(traversal_nodes[left-1], traversal_nodes[right-1]);
+
+        /* read another person | else if, because the tilde line should be skipped */
+        } else if(readRelationships == '0') {
+            /* add new relationship, so increase counter as well */
+            traversal_node_count++;
+
+            /* reallocate memory to receive space for another element */
+            traversal_nodes = (traversal_node_t **) realloc(traversal_nodes, sizeof(traversal_node_t *) * traversal_node_count);
+            if(traversal_nodes == NULL) {
+                handleError("Nodes pointer could not be reallocated!");
+            }
+            /* allocate space for the new element */
+            traversal_nodes[count] = (traversal_node_t *) calloc(1, sizeof(traversal_node_t));
+            if(traversal_nodes[count] == NULL) {
+                handleError("New node could not be added!");
+            }
+
+            /* set id for new element */
+            traversal_nodes[count]->id = count + 1;
+
+            /* split input buffer by ',' */
+            char *delimited = strtok(input_buffer, peopleDelimiter);
+            /* get string parts split by ',' */
+            while(delimited != NULL) {
+                /* strPart contains string part of conversion */
+                char *strPart;
+                int numberPart = convertStringToNum(delimited, &strPart);
+
+                /* only enter, if conversion didn't contain a number */
+                if(*strPart != '\0') {
+
+                    /* Check if firstname or lastname has to be set - firstname comes first, lastname second */
+                    if(traversal_nodes[count]->info.firstname == NULL) {
+                        traversal_nodes[count]->info.firstname = (char *) calloc(1, sizeof(char) * NAME_LENGTH);
+                        /* copy content of conversion to element copying the reference would result in not intended behaviour */
+                        strncpy(traversal_nodes[count]->info.firstname, strPart, NAME_LENGTH);
+                    }
+                    else if(traversal_nodes[count]->info.lastname == NULL) {
+                        traversal_nodes[count]->info.lastname = (char *) calloc(1, sizeof(char) * NAME_LENGTH);
+                        /* copy content of conversion to element copying the reference would result in not intended behaviour */
+                        strncpy(traversal_nodes[count]->info.lastname, strPart, NAME_LENGTH);
+                    }
+                    else {
+                        handleError("Unexpected value in file detected!\n");
+                    }
+
+                } else if(numberPart != 0) {
+                    if(traversal_nodes[count]->info.year == 0) {
+                        traversal_nodes[count]->info.year = numberPart;
+                    } else if(traversal_nodes[count]->info.month == 0) {
+                        traversal_nodes[count]->info.month = numberPart;
+                    } else if(traversal_nodes[count]->info.day == 0) {
+                        traversal_nodes[count]->info.day = numberPart;
+                    }else {
+                        handleError("Unexpected value in file detected!\n");
+                    }
+                }
+                delimited = strtok(NULL, peopleDelimiter);
+            }
+        }
+    }
+}
+
+/*
+    purpose: add a relationship to two persons bidirectionally
+    author: simon Primetzhofer
+    input: two traversal_nodes where the relationship gets added
+    output: none
+*/
+static void addRelationship(traversal_node_t *person1, traversal_node_t* person2) {
+
+    /* add node to friends */
+    person1->friends[person1->friendcount] = person2;
+    person2->friends[person2->friendcount] = person1;
+
+    /* increase counters */
+    person1->friendcount++;
+    person2->friendcount++;
 }
 
 /*
@@ -451,4 +519,15 @@ static void printFriendsByNode(traversal_node_t *node) {
     }
     /* after the last id, print newline */
     printf("%d\n", node->friends[index]->id);
+}
+
+/*
+    purpose: convert text to number and store additional string parts to string
+    author: simon primetzhofer
+    input: numberString which contains number
+           stringPart which will contain additional string parts
+    output: number value of string
+*/
+static int convertStringToNum(char *numberString, char **stringPart) {
+    return strtol(numberString, stringPart, CONVERSION_BASE);
 }
