@@ -30,6 +30,7 @@ typedef struct traversal_node traversal_node_t;
 /* Function definitions */
 static void handleError(FILE *file, char *message);
 static void addRelationship(traversal_node_t *person1, traversal_node_t* person2);
+static void traverseDepth(traversal_node_t *node, int depth);
 static void printData(traversal_node_t **nodes, int count);
 static void printFriendsByNode(traversal_node_t *node);
 static void freeMemory(traversal_node_t **traversal_nodes, int count);
@@ -218,12 +219,13 @@ int main(int argc, char **argv){
     }
 
     /* traverse */
-    traversal_node_t *startNode = traversal_nodes[startId];
+    traversal_node_t *startNode = traversal_nodes[startId - 1];
     if(startNode == NULL) {
         handleError(data, "Element at startId does not exist!\n");
         return EXIT_FAILURE;
     }
-
+    startNode->visited = '1';
+    traverseDepth(startNode, depth);
 
 
     /* sort */
@@ -241,14 +243,29 @@ int main(int argc, char **argv){
 static void addRelationship(traversal_node_t *person1, traversal_node_t* person2) {
 }
 
+static void traverseDepth(traversal_node_t *node, int depth) {
+    int index;
+    if(depth < 1) return;
+    for(index = 0; index < node->friendcount; index++) {
+        if(node->friends[index]->visited != '1') {
+            node->friends[index]->visited = '1';
+            traverseDepth(node->friends[index], depth-1);
+        }
+
+    }
+
+}
+
 static void printData(traversal_node_t **nodes, int count) {
     int index;
     for(index = 0; index < count; index++) {
-        char *friendsWord = nodes[index]->friendcount == 1 ? "friend: " : nodes[index]->friendcount == 0 ? "friends" : "friends: ";
-        printf("[%d] %s %s, born %d-%d-%d has %d %s", nodes[index]->id, nodes[index]->info.firstname, nodes[index]->info.lastname,
+        if(nodes[index]->visited == '1') {
+            char *friendsWord = nodes[index]->friendcount == 1 ? "friend: " : nodes[index]->friendcount == 0 ? "friends" : "friends: ";
+            printf("[%d] %s %s, born %d-%d-%d has %d %s", nodes[index]->id, nodes[index]->info.firstname, nodes[index]->info.lastname,
                                                                        nodes[index]->info.year, nodes[index]->info.month, nodes[index]->info.day,
                                                                        nodes[index]->friendcount, friendsWord);
-        printFriendsByNode(nodes[index]);
+            printFriendsByNode(nodes[index]);
+        }
     }
 }
 
