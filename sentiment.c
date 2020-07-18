@@ -31,7 +31,7 @@ int main(int argc, char* argv[]){
 
     /* too less or too much parameters */
     if (argc < 2 || argc > 3) {
-        fprintf(stderr, "\nmissing operand after '%s'\n\nUsage: %s[-v] phrase-file\n", argv[0], argv[0]);
+        fprintf(stderr, "\nmissing operand after '%s'\n\nUsage: %s [-v] phrase-file\n", argv[0], argv[0]);
         exit(EXIT_SUCCESS);
     }
 
@@ -53,7 +53,10 @@ int main(int argc, char* argv[]){
     phrase_dictionary_t **dictionary = calloc(0, sizeof(phrase_dictionary_t *));
     int dictionarySize = 0;
 
+    /* read phrases line by line */
     while(fgets(phrases_input_buffer, PHRASES_BUFFER_SIZE, file) != NULL) {
+
+        /* increase dictionary and check if allocation has worked*/
         dictionarySize++;
         dictionary = (phrase_dictionary_t **) realloc(dictionary, (dictionarySize) * sizeof(phrase_dictionary_t *));
         if(dictionary == NULL) {
@@ -65,15 +68,23 @@ int main(int argc, char* argv[]){
             fprintf(stderr, "Memory for dictionary entry could not be reallocted!\n");
             exit(EXIT_FAILURE);
         }
+
+        /* split by tabulator to extract text and score */
         const char *delimiter = "\t";
         char *delimited = strtok(phrases_input_buffer, delimiter);
 
-        if(strlen(delimited) > 30) {
+        /* phrases with more than 30 characters are rejected and throw an error */
+        if(strlen(delimited) > PHRASES_BUFFER_SIZE) {
             fprintf(stderr, "Phrase %s rejected due to length > 30!", delimited);
             exit(EXIT_FAILURE);
         }
 
         dictionary[dictionarySize - 1]->text = (char *) calloc(PHRASES_BUFFER_SIZE, sizeof(char));
+        if(dictionary[dictionarySize - 1]->text == NULL) {
+            fprintf(stderr, "Memory could not be allocated!");
+            exit(EXIT_FAILURE);
+        }
+        /* copy phrase to dictionary */
         strcpy(dictionary[dictionarySize - 1]->text, delimited);
 
         /* count number of words */
@@ -85,6 +96,7 @@ int main(int argc, char* argv[]){
         }
         dictionary[dictionarySize - 1]->numOfWords = wordCount;
 
+        /* get score of phrase (part right of tabulator) */
         delimited = strtok(NULL, delimiter);
         int numberPart = strtol(delimited, NULL, 10);
         if(numberPart != 0) {
@@ -92,6 +104,7 @@ int main(int argc, char* argv[]){
         }
     }
 
+    /* create space to store occurrences */
     phrase_dictionary_t **occurrenceDictionary = calloc(0, sizeof(phrase_dictionary_t *));
     int occurrenceDictionarySize = 0;
 
@@ -104,8 +117,10 @@ int main(int argc, char* argv[]){
     char **wordContainer = calloc(0, sizeof(char *));
     int containerSize = 0;
 
+    /* read word by word from stdin */
     while(scanf(" %49[^ \t\n]", currentWord) != EOF) {
         containerSize++;
+        /* wordcontainer holds all words */
         wordContainer = realloc(wordContainer, containerSize * (sizeof(char *)));
         if(wordContainer == NULL) {
             fprintf(stderr, "Memory could not be reallocated!");
@@ -121,6 +136,7 @@ int main(int argc, char* argv[]){
 
     int i;
     for(i = 0; i < containerSize; i++) {
+        /* check, if words from wordcontainer occur in the dictionary */
         const phrase_dictionary_t *entry = searchWordInDictionary(dictionary, dictionarySize, wordContainer[i]);
         if(entry != NULL) {
             if(entry->numOfWords == 1) {
@@ -144,7 +160,7 @@ int main(int argc, char* argv[]){
                 int index;
                 for(index = i + 1; index < i + entry->numOfWords; index++) {
                     if(strstr(entry->text, wordContainer[index]) != NULL) {
-
+                        /* special handling of multi-word phrases */
                         occurrenceDictionarySize++;
                         occurrenceDictionary = realloc(occurrenceDictionary, occurrenceDictionarySize * sizeof(phrase_dictionary_t *));
                         if(occurrenceDictionary == NULL) {
@@ -172,8 +188,10 @@ int main(int argc, char* argv[]){
     /* print */
     print((printPhrases == '1' ? occurrenceDictionary : NULL), occurrenceDictionarySize, score);
 
+    /* free dictionary */
     releaseMemory(dictionary, dictionarySize);
 
+    /* free wordcontainer */
     for(i = 0; i < containerSize; i++) {
         free(wordContainer[i]);
     }
@@ -182,6 +200,7 @@ int main(int argc, char* argv[]){
     return EXIT_SUCCESS;
 }
 
+/* open a file */
 FILE *openFile(char *filename) {
     FILE *file = fopen(filename, "r");
     if(file == NULL) {
@@ -192,10 +211,12 @@ FILE *openFile(char *filename) {
     return file;
 }
 
+/* print phrases in valid json format */
 void print(phrase_dictionary_t **dictionary, int dictionarySize, int score) {
+    /* opening bracket */
     printf("{");
 
-    /* print items */
+    /* print items as json array */
     if(dictionary != NULL) {
         printf("\"matches\": [\n");
         int i;
@@ -206,9 +227,11 @@ void print(phrase_dictionary_t **dictionary, int dictionarySize, int score) {
         }
         printf("],\n");
     }
+    /* score is printed always */
     printf("\"score\": %d}\n", score);
 }
 
+/* calculate score of given dictionary */
 int calculateScore(phrase_dictionary_t **dictionary, int dictionarySize) {
     int i;
     int sum = 0;
@@ -220,12 +243,13 @@ int calculateScore(phrase_dictionary_t **dictionary, int dictionarySize) {
     return sum;
 }
 
+/* search for word inside of a dictionary */
 phrase_dictionary_t *searchWordInDictionary(phrase_dictionary_t **dictionary, int dictionarySize, char *word) {
     int i;
     for(i = 0; i < dictionarySize; i++) {
         if(strcasecmp(dictionary[i]->text, word) == 0) {
             return dictionary[i];
-        } else if(dictionary[i]->numOfWords > 1) {
+        } else if(dictionary[i]->numOfWords > 1) { /* for handling multi-word phrases */
             if(strstr(dictionary[i]->text, word) != NULL) {
                 return dictionary[i];
             }
@@ -234,6 +258,7 @@ phrase_dictionary_t *searchWordInDictionary(phrase_dictionary_t **dictionary, in
     return NULL;
 }
 
+/* free memory of a dictionary */
 void releaseMemory(phrase_dictionary_t **dictionary, int dictionarySize) {
     int i;
     for(i = 0; i < dictionarySize; i++) {
