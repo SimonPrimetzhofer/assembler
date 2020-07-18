@@ -31,14 +31,13 @@ int main(int argc, char* argv[]){
 
     /* too less or too much parameters */
     if (argc < 2 || argc > 3) {
-        fprintf(stderr, "\nmissing operand after './%s'\n\nUsage: ./%s[-v] phrase-file", argv[0], argv[0]);
+        fprintf(stderr, "\nmissing operand after '%s'\n\nUsage: %s[-v] phrase-file\n", argv[0], argv[0]);
         exit(EXIT_SUCCESS);
     }
 
     argv++;
 
     /* handle input params */
-
     if(argc == 2) {
         file = openFile(*(argv));
     } else if(argc == 3) {
@@ -107,7 +106,6 @@ int main(int argc, char* argv[]){
 
     while(scanf(" %49[^ \t\n]", currentWord) != EOF) {
         containerSize++;
-        printf("%s\n", currentWord);
         wordContainer = realloc(wordContainer, containerSize * (sizeof(char *)));
         if(wordContainer == NULL) {
             fprintf(stderr, "Memory could not be reallocated!");
@@ -146,7 +144,7 @@ int main(int argc, char* argv[]){
                 int index;
                 for(index = i + 1; index < i + entry->numOfWords; index++) {
                     if(strstr(entry->text, wordContainer[index]) != NULL) {
-                        /* enlarge dictionary */
+
                         occurrenceDictionarySize++;
                         occurrenceDictionary = realloc(occurrenceDictionary, occurrenceDictionarySize * sizeof(phrase_dictionary_t *));
                         if(occurrenceDictionary == NULL) {
@@ -161,7 +159,6 @@ int main(int argc, char* argv[]){
                         memcpy(occurrenceDictionary[occurrenceDictionarySize - 1], entry, sizeof(phrase_dictionary_t));
                     }
                 }
-                printf("\n");
 
             } else {
                 memcpy(occurrenceDictionary[occurrenceDictionarySize - 1], entry, sizeof(phrase_dictionary_t));
@@ -169,13 +166,18 @@ int main(int argc, char* argv[]){
         }
     }
 
+    /* calculate score */
     int score = calculateScore(occurrenceDictionary, occurrenceDictionarySize);
 
     /* print */
     print((printPhrases == '1' ? occurrenceDictionary : NULL), occurrenceDictionarySize, score);
 
     releaseMemory(dictionary, dictionarySize);
-    /*releaseMemory(occurrenceDictionary, occurrenceDictionarySize);*/
+
+    for(i = 0; i < containerSize; i++) {
+        free(wordContainer[i]);
+    }
+    free(wordContainer);
 
     return EXIT_SUCCESS;
 }
@@ -223,10 +225,10 @@ phrase_dictionary_t *searchWordInDictionary(phrase_dictionary_t **dictionary, in
     for(i = 0; i < dictionarySize; i++) {
         if(strcasecmp(dictionary[i]->text, word) == 0) {
             return dictionary[i];
-        } else {
-            if(strstr(dictionary[i]->text, word) != NULL)
+        } else if(dictionary[i]->numOfWords > 1) {
+            if(strstr(dictionary[i]->text, word) != NULL) {
                 return dictionary[i];
-
+            }
         }
     }
     return NULL;
