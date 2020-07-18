@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <ctype.h>
 
 #define TEXT_BUFFER_SIZE 1000
@@ -12,6 +10,7 @@
 /* struct definitions */
 struct phrase_dictionary {
     char *text;
+    int numOfWords;
     int score;
 };
 
@@ -22,7 +21,9 @@ typedef struct phrase_dictionary phrase_dictionary_t;
 FILE *openFile(char *filename);
 void print(phrase_dictionary_t **dictionary, int dictionarySize, int score);
 int calculateScore(phrase_dictionary_t **dictionary, int dictionarySize);
+int strcasecmp(const char *s1, const char *s2);
 void releaseMemory(phrase_dictionary_t **dictionary, int dictionarySize);
+phrase_dictionary_t *searchWordInDictionary(phrase_dictionary_t **dictionary, int dictionarySize, char *word);
 
 int main(int argc, char* argv[]){
     FILE *file = NULL;
@@ -76,6 +77,15 @@ int main(int argc, char* argv[]){
         dictionary[dictionarySize - 1]->text = (char *) calloc(PHRASES_BUFFER_SIZE, sizeof(char));
         strcpy(dictionary[dictionarySize - 1]->text, delimited);
 
+        /* count number of words */
+        int wordCount = 1;
+        int i;
+        for(i = 0;i < strlen(delimited); i++) {
+            if(delimited[i] == ' ' && delimited[i + 1] != ' ')
+                wordCount++;
+        }
+        dictionary[dictionarySize - 1]->numOfWords = wordCount;
+
         delimited = strtok(NULL, delimiter);
         int numberPart = strtol(delimited, NULL, 10);
         if(numberPart != 0) {
@@ -83,12 +93,7 @@ int main(int argc, char* argv[]){
         }
     }
 
-    /*int i;
-    for(i=0;i<dictionarySize; i++) {
-        printf("%s %d\n", dictionary[i]->text, dictionary[i]->score);
-    }*/
-    char text_input_buffer[TEXT_BUFFER_SIZE];
-    phrase_dictionary_t **occurrenceDictionary = calloc(1, sizeof(phrase_dictionary_t *));
+    phrase_dictionary_t **occurrenceDictionary = calloc(0, sizeof(phrase_dictionary_t *));
     int occurrenceDictionarySize = 0;
 
     if(occurrenceDictionary == NULL) {
@@ -96,10 +101,72 @@ int main(int argc, char* argv[]){
         exit(EXIT_FAILURE);
     }
 
-    while(fgets(text_input_buffer, TEXT_BUFFER_SIZE, stdin) != NULL) {
-        fprintf(stdout, "%s\n", text_input_buffer);
+    char currentWord[PHRASES_BUFFER_SIZE];
+    char **wordContainer = calloc(0, sizeof(char *));
+    int containerSize = 0;
 
+    while(scanf(" %49[^ \t\n]", currentWord) != EOF) {
+        containerSize++;
+        printf("%s\n", currentWord);
+        wordContainer = realloc(wordContainer, containerSize * (sizeof(char *)));
+        if(wordContainer == NULL) {
+            fprintf(stderr, "Memory could not be reallocated!");
+            exit(EXIT_FAILURE);
+        }
+        wordContainer[containerSize - 1] = calloc(strlen(currentWord), sizeof(char));
+        if(wordContainer[containerSize - 1] == NULL) {
+            fprintf(stderr, "Memory could not be allocated!");
+            exit(EXIT_FAILURE);
+        }
+        strcpy(wordContainer[containerSize - 1], currentWord);
+    }
 
+    int i;
+    for(i = 0; i < containerSize; i++) {
+        const phrase_dictionary_t *entry = searchWordInDictionary(dictionary, dictionarySize, wordContainer[i]);
+        if(entry != NULL) {
+            if(entry->numOfWords == 1) {
+                occurrenceDictionarySize++;
+                occurrenceDictionary = realloc(occurrenceDictionary, occurrenceDictionarySize * sizeof(phrase_dictionary_t *));
+                if(occurrenceDictionary == NULL) {
+                    fprintf(stderr, "Memory could not be reallocated!");
+                    exit(EXIT_FAILURE);
+                }
+                occurrenceDictionary[occurrenceDictionarySize - 1] = calloc(1, sizeof(phrase_dictionary_t));
+                if(occurrenceDictionary[occurrenceDictionarySize - 1] == NULL) {
+                    fprintf(stderr, "Memory could not be allocated!");
+                    exit(EXIT_FAILURE);
+                }
+            }
+
+            /* check if dictionary entry consists of more than one word */
+            if(entry->numOfWords > 1) {
+                if(i + entry->numOfWords > containerSize)
+                    continue;
+                int index;
+                for(index = i + 1; index < i + entry->numOfWords; index++) {
+                    if(strstr(entry->text, wordContainer[index]) != NULL) {
+                        /* enlarge dictionary */
+                        occurrenceDictionarySize++;
+                        occurrenceDictionary = realloc(occurrenceDictionary, occurrenceDictionarySize * sizeof(phrase_dictionary_t *));
+                        if(occurrenceDictionary == NULL) {
+                            fprintf(stderr, "Memory could not be reallocated!");
+                            exit(EXIT_FAILURE);
+                        }
+                        occurrenceDictionary[occurrenceDictionarySize - 1] = calloc(1, sizeof(phrase_dictionary_t));
+                        if(occurrenceDictionary[occurrenceDictionarySize - 1] == NULL) {
+                            fprintf(stderr, "Memory could not be allocated!");
+                            exit(EXIT_FAILURE);
+                        }
+                        memcpy(occurrenceDictionary[occurrenceDictionarySize - 1], entry, sizeof(phrase_dictionary_t));
+                    }
+                }
+                printf("\n");
+
+            } else {
+                memcpy(occurrenceDictionary[occurrenceDictionarySize - 1], entry, sizeof(phrase_dictionary_t));
+            }
+        }
     }
 
     int score = calculateScore(occurrenceDictionary, occurrenceDictionarySize);
@@ -108,7 +175,7 @@ int main(int argc, char* argv[]){
     print((printPhrases == '1' ? occurrenceDictionary : NULL), occurrenceDictionarySize, score);
 
     releaseMemory(dictionary, dictionarySize);
-    releaseMemory(occurrenceDictionary, occurrenceDictionarySize);
+    /*releaseMemory(occurrenceDictionary, occurrenceDictionarySize);*/
 
     return EXIT_SUCCESS;
 }
@@ -149,6 +216,20 @@ int calculateScore(phrase_dictionary_t **dictionary, int dictionarySize) {
     }
 
     return sum;
+}
+
+phrase_dictionary_t *searchWordInDictionary(phrase_dictionary_t **dictionary, int dictionarySize, char *word) {
+    int i;
+    for(i = 0; i < dictionarySize; i++) {
+        if(strcasecmp(dictionary[i]->text, word) == 0) {
+            return dictionary[i];
+        } else {
+            if(strstr(dictionary[i]->text, word) != NULL)
+                return dictionary[i];
+
+        }
+    }
+    return NULL;
 }
 
 void releaseMemory(phrase_dictionary_t **dictionary, int dictionarySize) {
